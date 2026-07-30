@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">Enables Voice Control to execute global phone actions like Go Home, Back, and Recent Apps hands-free via spoken voice commands.</string>
+    <string name="accessibility_service_label">Voice Control Assistant Service</string>
+    <string name="app_name">Voice Control</string>
+    <style name="Theme.VoiceControl" parent="android:Theme.Material.Light.NoActionBar"/>
+</resources>
