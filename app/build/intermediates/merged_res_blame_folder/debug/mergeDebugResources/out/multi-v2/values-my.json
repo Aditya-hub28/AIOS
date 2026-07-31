@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.voicecontrol.app-mergeDebugResources-47:/values-my/values-my.xml",
+            "outputFile": "com.example.voicecontrol.app-mergeDebugResources-48:/values-my/values-my.xml",
             "map": [
                 {
                     "source": "C:\\Users\\LENOVO\\.gradle\\caches\\9.3.0\\transforms\\31eb8ca1b5557f64d645b82c9bbde208\\workspace\\transformed\\material3-release\\res\\values-my\\values-my.xml",

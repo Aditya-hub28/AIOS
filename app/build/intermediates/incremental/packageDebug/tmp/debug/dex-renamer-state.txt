@@ -1,7 +1,8 @@
-#Fri Jul 31 11:11:02 IST 2026
+#Fri Jul 31 12:22:47 IST 2026
 base.0=C\:\\Users\\LENOVO\\OneDrive\\Desktop\\iphone feature clone\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes.dex
 base.1=C\:\\Users\\LENOVO\\OneDrive\\Desktop\\iphone feature clone\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
 base.10=C\:\\Users\\LENOVO\\OneDrive\\Desktop\\iphone feature clone\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\3\\classes.dex
+base.11=C\:\\Users\\LENOVO\\OneDrive\\Desktop\\iphone feature clone\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\4\\classes.dex
 base.2=C\:\\Users\\LENOVO\\OneDrive\\Desktop\\iphone feature clone\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\11\\classes.dex
 base.3=C\:\\Users\\LENOVO\\OneDrive\\Desktop\\iphone feature clone\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\12\\classes.dex
 base.4=C\:\\Users\\LENOVO\\OneDrive\\Desktop\\iphone feature clone\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\14\\classes.dex
@@ -13,6 +14,7 @@ base.9=C\:\\Users\\LENOVO\\OneDrive\\Desktop\\iphone feature clone\\app\\build\\
 path.0=classes.dex
 path.1=0/classes.dex
 path.10=3/classes.dex
+path.11=4/classes.dex
 path.2=11/classes.dex
 path.3=12/classes.dex
 path.4=14/classes.dex
@@ -24,6 +26,7 @@ path.9=10/classes.dex
 renamed.0=classes.dex
 renamed.1=classes2.dex
 renamed.10=classes11.dex
+renamed.11=classes12.dex
 renamed.2=classes3.dex
 renamed.3=classes4.dex
 renamed.4=classes5.dex

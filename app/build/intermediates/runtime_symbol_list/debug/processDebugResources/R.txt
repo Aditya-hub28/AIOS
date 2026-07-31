@@ -186,6 +186,7 @@ int string default_popup_window_title 0x7f09000c
 int string dropdown_menu 0x7f09000d
 int string in_progress 0x7f09000e
 int string indeterminate 0x7f09000f
+int string jna_library_appname 0x7f090059
 int string m3c_bottom_sheet_collapse_description 0x7f090010
 int string m3c_bottom_sheet_dismiss_description 0x7f090011
 int string m3c_bottom_sheet_drag_handle_description 0x7f090012
