@@ -218,11 +218,12 @@ class ColumbusMlTapDetector(
 
                 val lastTouchTs = ScreenTouchTracker.lastScreenTouchTimestamp
                 val isScreenTouchSuppressed = (now - lastTouchTs) in 0L..SCREEN_TOUCH_LOCKOUT_MS
+                val isKeyboardSuppressed = ScreenTouchTracker.isKeyboardTypingSuppressed(now)
 
                 val motionState = when {
                     gyroMag < 0.20f && vectorMag < 0.25f -> MotionClassification.STILL
                     gyroMag > 1.20f || accelMag > 15.0f -> MotionClassification.SHAKING
-                    confidence >= CONFIDENCE_THRESHOLD && !isScreenTouchSuppressed -> MotionClassification.BACK_TAP_LIKE
+                    confidence >= CONFIDENCE_THRESHOLD && !isScreenTouchSuppressed && !isKeyboardSuppressed -> MotionClassification.BACK_TAP_LIKE
                     else -> MotionClassification.MOVING
                 }
 
@@ -236,7 +237,7 @@ class ColumbusMlTapDetector(
                     mag = vectorMag, peak = vectorMag, xp = absX, yp = absY, zp = absZ,
                     zRatio = zDominanceRatio, jk = jerk, gm = gyroMag,
                     minImp = confidence, maxImp = 1.0f, minJk = 0.44f, maxGy = 0.45f,
-                    state = if (confidence >= CONFIDENCE_THRESHOLD && !isScreenTouchSuppressed) "POSSIBLE_TAP" else "IDLE",
+                    state = if (confidence >= CONFIDENCE_THRESHOLD && !isScreenTouchSuppressed && !isKeyboardSuppressed) "POSSIBLE_TAP" else "IDLE",
                     motion = motionState.name,
                     count = tapTimestamps.size,
                     seqText = "${tapTimestamps.size}/3",
@@ -245,8 +246,17 @@ class ColumbusMlTapDetector(
                     latencyMs = inferenceLatencyMs,
                     touchTs = lastTouchTs,
                     impulseTs = now,
-                    isSuppressed = isScreenTouchSuppressed
+                    isSuppressed = isScreenTouchSuppressed || isKeyboardSuppressed
                 )
+
+                // EVALUATE KEYBOARD TYPING & HAPTIC VIBRATION SUPPRESSION
+                if (isKeyboardSuppressed) {
+                    if (jerk >= 0.44f) {
+                        Log.w(TAG, "KEYBOARD_HAPTIC_SUPPRESSED: Candidate suppressed during active keypad typing.")
+                        BackTapDebugManager.logEvent("KEYBOARD_HAPTIC_SUPPRESSED")
+                    }
+                    return
+                }
 
                 // EVALUATE SCREEN TOUCH SUPPRESSION
                 if (isScreenTouchSuppressed) {
@@ -312,6 +322,11 @@ class ColumbusMlTapDetector(
         // Rule A: Hand Movement Guard (wrist turning or moving hand has Gyro > 0.45 rad/s)
         if (currentGyroMag > 0.45f) {
             return Pair(0.10f, "Hand Movement Noise (Gyro %.2f > 0.45)".format(currentGyroMag))
+        }
+
+        // Rule A2: Haptic Motor Vibration Guard (Internal keypad haptic motors produce Jerk without angular momentum change)
+        if (currentGyroMag < 0.10f && currentJerk < 0.70f) {
+            return Pair(0.08f, "Keypad Haptic Vibration (Gyro %.2f < 0.10)".format(currentGyroMag))
         }
 
         // Rule B: Cover Dampening Impulse Guard (cover dampened back taps produce Jerk >= 0.44 m/s³)

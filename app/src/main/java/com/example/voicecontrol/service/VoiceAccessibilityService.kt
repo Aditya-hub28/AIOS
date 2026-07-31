@@ -346,12 +346,16 @@ class VoiceAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event != null) {
             when (event.eventType) {
+                AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED,
+                AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED,
+                AccessibilityEvent.TYPE_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY -> {
+                    com.example.voicecontrol.util.ScreenTouchTracker.onKeyboardTyping()
+                }
                 AccessibilityEvent.TYPE_VIEW_CLICKED,
                 AccessibilityEvent.TYPE_VIEW_FOCUSED,
                 AccessibilityEvent.TYPE_VIEW_SCROLLED,
                 AccessibilityEvent.TYPE_TOUCH_INTERACTION_START,
-                AccessibilityEvent.TYPE_TOUCH_INTERACTION_END,
-                AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED -> {
+                AccessibilityEvent.TYPE_TOUCH_INTERACTION_END -> {
                     com.example.voicecontrol.util.ScreenTouchTracker.onScreenTouch()
                 }
             }
