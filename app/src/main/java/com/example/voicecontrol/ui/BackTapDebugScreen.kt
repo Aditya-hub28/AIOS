@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -26,6 +27,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -44,9 +46,9 @@ import androidx.compose.ui.unit.sp
 import com.example.voicecontrol.manager.BackTapDebugManager
 
 /**
- * In-App Back Tap Debug Dashboard (Jetpack Compose).
- * Displays live sensor telemetry, calculated metrics, tap counter, performance (Hz, Latency),
- * active state badge, motion classification badge, floating overlay switch, and 200-event log feed.
+ * Production In-App Columbus ML Back Tap Debug Dashboard (Jetpack Compose).
+ * Features: Live 50Hz sensor telemetry, ML Gesture Confidence Gauge (0-100%),
+ * TFLite Inference Latency, State Machine badges, Motion Classifiers, and 200-event Feed.
  */
 @Composable
 fun BackTapDebugScreen(
@@ -58,13 +60,15 @@ fun BackTapDebugScreen(
     val eventLogs by BackTapDebugManager.eventLogs.collectAsState()
     val isFloatingOverlayActive by BackTapDebugManager.isFloatingOverlayActive.collectAsState()
 
+    val confidencePct = (telemetry.minImpulse * 100f).coerceIn(0f, 100f)
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFF121212))
             .padding(14.dp)
     ) {
-        // --- HEADER & CONTROL CARD ---
+        // --- HEADER CARD ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
@@ -79,14 +83,14 @@ fun BackTapDebugScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.BugReport,
-                            contentDescription = "Debug Dashboard",
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = "ML Engine",
                             tint = Color(0xFF00E676)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Back Tap Debug Dashboard",
-                            fontSize = 18.sp,
+                            text = "Columbus ML Back Tap Engine",
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
@@ -107,7 +111,6 @@ fun BackTapDebugScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // State Badge: IDLE, POSSIBLE_TAP, VALID_TAP, TRIPLE_TAP
                     Box(
                         modifier = Modifier
                             .background(
@@ -129,7 +132,6 @@ fun BackTapDebugScreen(
                         )
                     }
 
-                    // Motion Badge: STILL, MOVING, SHAKING, BACK_TAP_LIKE
                     Box(
                         modifier = Modifier
                             .background(
@@ -154,7 +156,7 @@ fun BackTapDebugScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // FLOATING OVERLAY TOGGLE & CLEAR LOGS ACTION
+                // FLOATING OVERLAY TOGGLE & CLEAR LOGS
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -195,6 +197,47 @@ fun BackTapDebugScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        // --- ML GESTURE CONFIDENCE CARD ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "ML GESTURE CONFIDENCE SCORE",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00E676)
+                    )
+                    Text(
+                        text = "${"%.1f".format(confidencePct)}%  (Threshold >= 85%)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (confidencePct >= 85f) Color(0xFF00E676) else Color(0xFFFFD600)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                LinearProgressIndicator(
+                    progress = { (confidencePct / 100f).coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp),
+                    color = if (confidencePct >= 85f) Color(0xFF00E676) else if (confidencePct >= 50f) Color(0xFFFFD600) else Color(0xFFFF5252),
+                    trackColor = Color.DarkGray
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
         // --- TAP COUNTER & PERFORMANCE PANEL ---
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -207,79 +250,16 @@ fun BackTapDebugScreen(
                     .padding(12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                MetricCell("Tap Count", "${telemetry.tapCount} / 3", isHighlight = true)
+                MetricCell("Sequence", telemetry.sequenceText, isHighlight = true)
                 MetricCell("Time Since Tap", "${telemetry.timeSinceLastTapMs} ms")
-                MetricCell("Sampling Rate", "${telemetry.sensorEventsPerSec} Hz")
-                MetricCell("Latency", "${telemetry.detectionLatencyMs} ms")
+                MetricCell("Sensor Rate", "${telemetry.sensorEventsPerSec} Hz")
+                MetricCell("TFLite Latency", "${telemetry.detectionLatencyMs} ms")
             }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // --- SENSOR METRICS & THRESHOLDS PANEL ---
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = "SENSORS & CALCULATED METRICS",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00E676)
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    MetricCell("Accel X", "%.2f".format(telemetry.accelX))
-                    MetricCell("Accel Y", "%.2f".format(telemetry.accelY))
-                    MetricCell("Accel Z", "%.2f".format(telemetry.accelZ))
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    MetricCell("LinAccel X", "%.2f".format(telemetry.linX))
-                    MetricCell("LinAccel Y", "%.2f".format(telemetry.linY))
-                    MetricCell("LinAccel Z", "%.2f".format(telemetry.linZ))
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    MetricCell("Gyro X", "%.2f".format(telemetry.gyroX))
-                    MetricCell("Gyro Y", "%.2f".format(telemetry.gyroY))
-                    MetricCell("Gyro Z", "%.2f".format(telemetry.gyroZ))
-                }
-
-                Divider(modifier = Modifier.padding(vertical = 6.dp), color = Color.DarkGray)
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    MetricCell("Peak", "%.2f".format(telemetry.peak), isHighlight = true)
-                    MetricCell("Z Peak", "%.2f".format(telemetry.zPeak), isHighlight = true)
-                    MetricCell("Jerk", "%.2f".format(telemetry.jerk), isHighlight = true)
-                    MetricCell("Gyro Mag", "%.2f".format(telemetry.gyroMag), isHighlight = true)
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = "Active Thresholds: Imp: %.2f..%.2f | Jerk: >=%.2f | Gyro: <%.2f".format(
-                        telemetry.minImpulse, telemetry.maxImpulse, telemetry.minJerk, telemetry.maxGyro
-                    ),
-                    fontSize = 10.sp,
-                    color = Color.Gray,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // --- LIVE EVENT LOG FEED (LAST 200 EVENTS) ---
+        // --- LIVE EVENT FEED (LAST 200 EVENTS) ---
         Text(
             text = "LIVE EVENT FEED (${eventLogs.size} / 200)",
             fontSize = 12.sp,
@@ -299,7 +279,7 @@ fun BackTapDebugScreen(
             if (eventLogs.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "No sensor events recorded yet.\nPerform actions on device to see live logs.",
+                        text = "No sensor events recorded yet.\nTap phone back to view ML inferences.",
                         color = Color.Gray,
                         fontSize = 12.sp,
                         textAlign = TextAlign.Center
@@ -337,8 +317,8 @@ private fun MetricCell(label: String, value: String, isHighlight: Boolean = fals
 @Composable
 private fun EventLogRow(logText: String) {
     val isTriple = logText.contains("TRIPLE_TAP")
-    val isValid = logText.contains("VALID_TAP")
-    val isNoise = logText.contains("NOISE") || logText.contains("INVALID_TAP")
+    val isValid = logText.contains("VALID_TAP") || logText.contains("SEQUENCE_STARTED")
+    val isNoise = logText.contains("NOISE") || logText.contains("REJECTED") || logText.contains("SEQUENCE_RESET")
 
     val bgColor = when {
         isTriple -> Color(0xFF1B5E20)
