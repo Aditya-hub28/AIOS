@@ -20,7 +20,7 @@ import kotlin.math.sqrt
 
 /**
  * Production-Grade Machine Learning Back Tap Classifier based on Google Pixel's Columbus / NanoApp ML Architecture.
- * Calibrated specifically for high-sensitivity detection on real devices (Vivo V40, Pixel, etc.).
+ * Golden Sweet Spot Calibration: Differentiates physical finger shockwaves (Jerk >= 0.48) from smooth hand movements (Gyro > 0.45).
  */
 class ColumbusMlTapDetector(
     private val context: Context,
@@ -35,14 +35,14 @@ class ColumbusMlTapDetector(
         // ML Feature Extraction Parameters
         private const val SAMPLE_WINDOW_SIZE = 50   // 50 samples (~1000ms window at 50Hz)
         private const val FEATURE_COUNT = 6         // 6 axes: ax, ay, az, gx, gy, gz
-        private const val CONFIDENCE_THRESHOLD = 0.65f // Require >= 65% ML Confidence for high sensitivity
+        private const val CONFIDENCE_THRESHOLD = 0.78f // Require >= 78% ML Confidence for sweet spot precision
         private const val ALPHA_LOW_PASS = 0.82f     // Low-pass filter for orientation-independent gravity tracking
 
         // Timing & Sequence Rules
         private const val SAMPLING_PERIOD_MS = 20L      // 50Hz sampling
-        private const val DEBOUNCE_INTERVAL_MS = 75L    // 75ms debounce between distinct taps
-        private const val MAX_INTER_TAP_GAP_MS = 450L   // Max gap between consecutive taps: 450ms
-        private const val TRIPLE_TAP_WINDOW_MS = 1200L  // Total 3-tap duration window: 1200ms
+        private const val DEBOUNCE_INTERVAL_MS = 90L    // 90ms debounce between distinct taps
+        private const val MAX_INTER_TAP_GAP_MS = 400L   // Max gap between consecutive taps: 400ms
+        private const val TRIPLE_TAP_WINDOW_MS = 1100L  // Total 3-tap duration window: 1100ms
         private const val LOCKOUT_PERIOD_MS = 1200L     // Post-match cool-down
     }
 
@@ -208,7 +208,7 @@ class ColumbusMlTapDetector(
 
                 val motionState = when {
                     gyroMag < 0.20f && hpMagnitude < 0.25f -> MotionClassification.STILL
-                    gyroMag > 1.80f || accelMag > 16.0f -> MotionClassification.SHAKING
+                    gyroMag > 1.20f || accelMag > 15.0f -> MotionClassification.SHAKING
                     confidence >= CONFIDENCE_THRESHOLD -> MotionClassification.BACK_TAP_LIKE
                     else -> MotionClassification.MOVING
                 }
@@ -221,7 +221,7 @@ class ColumbusMlTapDetector(
                     lx = hpX, ly = hpY, lz = hpZ,
                     gx = lastGyroX, gy = lastGyroY, gz = lastGyroZ,
                     mag = hpMagnitude, peak = hpMagnitude, zp = absZ, jk = jerk, gm = gyroMag,
-                    minImp = confidence, maxImp = 1.0f, minJk = 0.30f, maxGy = 1.60f,
+                    minImp = confidence, maxImp = 1.0f, minJk = 0.48f, maxGy = 0.45f,
                     state = if (confidence >= CONFIDENCE_THRESHOLD) "POSSIBLE_TAP" else "IDLE",
                     motion = motionState.name,
                     count = tapTimestamps.size,
@@ -237,15 +237,15 @@ class ColumbusMlTapDetector(
                 if (confidence >= CONFIDENCE_THRESHOLD) {
                     lastTapTime = now
                     processTapEvent(now, confidence, rejectionReason)
-                } else if (confidence > 0.35f) {
-                    Log.d(TAG, "REJECTED GESTURE: Confidence %.1f%% < 65.0%% | Reason: %s".format(confidence * 100f, rejectionReason))
+                } else if (confidence > 0.40f) {
+                    Log.d(TAG, "REJECTED GESTURE: Confidence %.1f%% < 78.0%% | Reason: %s".format(confidence * 100f, rejectionReason))
                 }
             }
         }
     }
 
     /**
-     * High-Precision Columbus ML Feature Classifier (Optimized for 100% Tap Sensitivity + Zero False Positives).
+     * High-Precision Sweet-Spot Columbus ML Feature Classifier.
      */
     private fun runColumbusInference(currentJerk: Float, currentHpMag: Float, currentAbsZ: Float, currentGyroMag: Float, currentAccelMag: Float): Pair<Float, String> {
         val interpreter = tfliteInterpreter
@@ -265,49 +265,30 @@ class ColumbusMlTapDetector(
                 interpreter.run(inputBuffer, outputArray)
 
                 val tapProbability = outputArray[0][1]
-                val reason = if (tapProbability < CONFIDENCE_THRESHOLD) "ML Model Probability ${"%.1f".format(tapProbability * 100)}% < 65%" else "Passed ML Model"
+                val reason = if (tapProbability < CONFIDENCE_THRESHOLD) "ML Model Probability ${"%.1f".format(tapProbability * 100)}% < 78%" else "Passed ML Model"
                 return Pair(tapProbability, reason)
             } catch (t: Throwable) {
                 Log.e(TAG, "Error executing TFLite inference", t)
             }
         }
 
-        // Feature Extraction Analysis
-        var maxGyro = 0f
-        var heavyMotionFrames = 0
-
-        for (i in 0 until SAMPLE_WINDOW_SIZE) {
-            val gx = featureMatrix[i][3]
-            val gy = featureMatrix[i][4]
-            val gz = featureMatrix[i][5]
-            val gMag = sqrt(gx * gx + gy * gy + gz * gz)
-
-            if (gMag > maxGyro) maxGyro = gMag
-            if (gMag > 2.0f) heavyMotionFrames++
+        // Rule A: Hand Movement Guard (wrist turning or moving hand has Gyro > 0.45 rad/s)
+        if (currentGyroMag > 0.45f) {
+            return Pair(0.10f, "Hand Movement Noise (Gyro %.2f > 0.45)".format(currentGyroMag))
         }
 
-        // Rule A: Rotational Ceiling Guard (reject fast phone shake/turn)
-        if (currentGyroMag > 1.60f || maxGyro > 2.20f) {
-            return Pair(0.10f, "Wrist Rotation Noise (Gyro %.2f > 1.60)".format(currentGyroMag))
+        // Rule B: Smooth Hand Motion Guard (physical finger back taps produce Jerk >= 0.48 m/s³)
+        if (currentJerk < 0.48f) {
+            return Pair(0.05f, "Smooth Hand Motion (Jerk %.2f < 0.48)".format(currentJerk))
         }
 
-        // Rule B: Heavy Body Motion Guard
-        if (heavyMotionFrames > 15) {
-            return Pair(0.15f, "Heavy Phone Motion (%d frames > 2.0)".format(heavyMotionFrames))
-        }
+        // Compute Sweet-Spot ML Confidence Score for Physical Finger Back Taps
+        val jerkRatio = (currentJerk / 1.10f).coerceAtMost(1.0f)
+        val magRatio = (currentHpMag / 0.70f).coerceAtMost(1.0f)
+        val stabilityRatio = (1.0f - (currentGyroMag / 0.45f)).coerceAtLeast(0f)
 
-        // Rule C: Subthreshold Impact Spike (finger back taps generate Jerk >= 0.28 m/s³ or HpMag >= 0.25 m/s²)
-        if (currentJerk < 0.28f && currentHpMag < 0.25f) {
-            return Pair(0.05f, "Subthreshold Impact (Jerk %.2f < 0.28)".format(currentJerk))
-        }
-
-        // Compute High-Sensitivity ML Confidence Score
-        val jerkRatio = (currentJerk / 0.70f).coerceAtMost(1.0f)
-        val magRatio = (currentHpMag / 0.50f).coerceAtMost(1.0f)
-        val stabilityRatio = (1.0f - (currentGyroMag / 1.60f)).coerceAtLeast(0f)
-
-        val confidence = (jerkRatio * 0.50f + magRatio * 0.35f + stabilityRatio * 0.15f).coerceAtMost(0.98f)
-        val reason = if (confidence >= CONFIDENCE_THRESHOLD) "Back Tap Impact Verified" else "Confidence %.1f%% below 65.0%%".format(confidence * 100f)
+        val confidence = (jerkRatio * 0.55f + magRatio * 0.30f + stabilityRatio * 0.15f).coerceAtMost(0.98f)
+        val reason = if (confidence >= CONFIDENCE_THRESHOLD) "Physical Back Tap Verified" else "Confidence %.1f%% below 78.0%%".format(confidence * 100f)
         return Pair(confidence, reason)
     }
 
@@ -317,7 +298,7 @@ class ColumbusMlTapDetector(
 
         if (tapTimestamps.isNotEmpty() && gap > MAX_INTER_TAP_GAP_MS) {
             Log.w(TAG, "SEQUENCE_RESET: Gap ${gap}ms exceeded ${MAX_INTER_TAP_GAP_MS}ms limit.")
-            BackTapDebugManager.logEvent("SEQUENCE_RESET (Gap ${gap}ms > 450ms)")
+            BackTapDebugManager.logEvent("SEQUENCE_RESET (Gap ${gap}ms > 400ms)")
             tapTimestamps.clear()
             sequenceStartTime = 0L
         }
@@ -357,8 +338,8 @@ class ColumbusMlTapDetector(
                     sequenceStartTime = 0L
                     onTripleTap()
                 } else {
-                    Log.w(TAG, "SEQUENCE_RESET: Total duration ${totalDuration}ms > 1200ms window.")
-                    BackTapDebugManager.logEvent("SEQUENCE_RESET (Duration ${totalDuration}ms > 1200ms)")
+                    Log.w(TAG, "SEQUENCE_RESET: Total duration ${totalDuration}ms > 1100ms window.")
+                    BackTapDebugManager.logEvent("SEQUENCE_RESET (Duration ${totalDuration}ms > 1100ms)")
                     tapTimestamps.clear()
                     sequenceStartTime = 0L
                 }
