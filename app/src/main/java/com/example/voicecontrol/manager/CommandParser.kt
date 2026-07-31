@@ -266,35 +266,35 @@ object CommandParser {
         var extractedRows: Int? = null
         var extractedCols: Int? = null
 
-        // Check for "X rows" or "row X" (including phonetic variations: rose, raws, raw, roes, ros)
-        val rowRegex = Regex("""(\d+|[a-z]+)\s+(?:rows?|row|rose|raws?|raw|roes|ros)""")
+        // Check for "X rows" or "row X" (including phonetic variations: rose, raws, raw, roes, ros, roz, roze, ross, rowses, rosses)
+        val rowRegex = Regex("""(\d+|[a-z]+)\s+(?:rows?|row|rose|raws?|raw|roes|ros|roz|roze|ross|rowses|rosses)""")
         val rowMatch = rowRegex.find(lowerText)
         if (rowMatch != null) {
             extractedRows = parseSpokenNumber(rowMatch.groupValues[1])
         } else {
-            val rowRegexAlt = Regex("""(?:rows?|row|rose|raws?|raw|roes|ros)\s+(\d+|[a-z]+)""")
+            val rowRegexAlt = Regex("""(?:rows?|row|rose|raws?|raw|roes|ros|roz|roze|ross|rowses|rosses)\s+(\d+|[a-z]+)""")
             val rowMatchAlt = rowRegexAlt.find(lowerText)
             if (rowMatchAlt != null) {
                 extractedRows = parseSpokenNumber(rowMatchAlt.groupValues[1])
             }
         }
 
-        // Check for "X columns" or "column X" (including phonetic variations: cols, col, calumns, collumns, colums, kals, callum, calum, kols)
-        val colRegex = Regex("""(\d+|[a-z]+)\s+(?:columns?|column|cols?|col|calumns?|collumns?|colums?|kals|callum|calum|kols)""")
+        // Check for "X columns" or "column X" (including phonetic variations: cols, col, calumns, collumns, colums, kals, callum, calum, kols, kollum, kollums, collum, collums, kullum, kullums)
+        val colRegex = Regex("""(\d+|[a-z]+)\s+(?:columns?|column|cols?|col|calumns?|collumns?|colums?|kals|callum|calum|kols|kollums?|collums?|kullums?)""")
         val colMatch = colRegex.find(lowerText)
         if (colMatch != null) {
             extractedCols = parseSpokenNumber(colMatch.groupValues[1])
         } else {
-            val colRegexAlt = Regex("""(?:columns?|column|cols?|col|calumns?|collumns?|colums?|kals|callum|calum|kols)\s+(\d+|[a-z]+)""")
+            val colRegexAlt = Regex("""(?:columns?|column|cols?|col|calumns?|collumns?|colums?|kals|callum|calum|kols|kollums?|collums?|kullums?)\s+(\d+|[a-z]+)""")
             val colMatchAlt = colRegexAlt.find(lowerText)
             if (colMatchAlt != null) {
                 extractedCols = parseSpokenNumber(colMatchAlt.groupValues[1])
             }
         }
 
-        // Check for "X by Y" (e.g. "grid 7 by 9")
+        // Check for "X by Y" (e.g. "grid 7 by 9", "7 bi 9", "7 times 9")
         if (extractedRows == null && extractedCols == null) {
-            val byRegex = Regex("""(\d+|[a-z]+)\s+by\s+(\d+|[a-z]+)""")
+            val byRegex = Regex("""(\d+|[a-z]+)\s+(?:by|bi|buy|bye|times|x|into)\s+(\d+|[a-z]+)""")
             val byMatch = byRegex.find(lowerText)
             if (byMatch != null) {
                 extractedRows = parseSpokenNumber(byMatch.groupValues[1])
