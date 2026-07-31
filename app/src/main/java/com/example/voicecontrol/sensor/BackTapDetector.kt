@@ -28,11 +28,11 @@ class BackTapDetector(
         // Filtering Coefficients
         private const val ALPHA_LOW_PASS = 0.82f
 
-        // Diagnostic Thresholds (broad range to capture and log all real tap candidates)
-        var MIN_TAP_IMPULSE = 0.40f       // Minimum peak m/s²
-        var MAX_TAP_IMPULSE = 5.50f       // Maximum peak m/s² (rejects heavy motion/shakes)
-        var MIN_JERK_THRESHOLD = 3.50f    // Minimum Jerk m/s³ derivative spike
-        var MAX_GYRO_ROTATION = 2.50f     // rad/s gyro rotation ceiling
+        // Diagnostic & Calibrated Thresholds based on real device sensor data
+        var MIN_TAP_IMPULSE = 0.30f       // Minimum peak m/s² (captures 0.45 - 0.67 m/s² subtle back taps)
+        var MAX_TAP_IMPULSE = 5.00f       // Maximum peak m/s² (rejects heavy motion/shakes)
+        var MIN_JERK_THRESHOLD = 0.35f    // Minimum Jerk m/s³ derivative spike (captures 0.67 m/s³)
+        var MAX_GYRO_ROTATION = 1.50f     // rad/s gyro rotation ceiling (held stable: 0.08 rad/s)
 
         // Timing Rules
         private const val DEBOUNCE_INTERVAL_MS = 80L // 80ms debounce between distinct taps
