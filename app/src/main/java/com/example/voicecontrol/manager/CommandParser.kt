@@ -93,7 +93,18 @@ sealed interface VoiceCommand {
 object CommandParser {
 
     private val OPEN_PREFIXES = listOf("open", "launch", "start", "run", "go to")
-    private val TAP_PREFIXES = listOf("tap", "click", "press", "select", "touch")
+    private val TAP_PREFIXES = listOf("tap", "tab", "top", "tub", "tip", "app", "cap", "tape", "click", "press", "select", "touch")
+
+    private val SPOKEN_NUMBER_MAP = mapOf(
+        "zero" to 0, "one" to 1, "two" to 2, "to" to 2, "too" to 2,
+        "three" to 3, "four" to 4, "for" to 4, "fore" to 4,
+        "five" to 5, "six" to 6, "seven" to 7, "eight" to 8, "ate" to 8,
+        "nine" to 9, "ten" to 10, "eleven" to 11, "twelve" to 12,
+        "thirteen" to 13, "fourteen" to 14, "fifteen" to 15,
+        "sixteen" to 16, "seventeen" to 17, "eighteen" to 18,
+        "nineteen" to 19, "twenty" to 20,
+        "first" to 1, "second" to 2, "third" to 3, "fourth" to 4, "fifth" to 5
+    )
 
     /**
      * Parses a raw spoken text string and extracts the intent.
@@ -206,12 +217,22 @@ object CommandParser {
     }
 
     /**
-     * Parses tap number patterns such as "tap 5", "tap number 5", "click 12", "number 3", or "5".
+     * Helper to parse integer digits or spoken number words ("one" -> 1, "two" -> 2, etc.).
+     */
+    private fun parseSpokenNumber(text: String): Int? {
+        val trimmed = text.trim()
+        trimmed.toIntOrNull()?.let { return it }
+        return SPOKEN_NUMBER_MAP[trimmed.lowercase(Locale.getDefault())]
+    }
+
+    /**
+     * Parses tap number patterns such as "tap 5", "tab 5", "click 12", "number 3", "5", "five", "7", "seven".
      */
     private fun parseTapNumberCommand(lowerText: String, trimmedText: String): Int? {
-        // Pure digits check: "5", "12"
-        trimmedText.toIntOrNull()?.let { return it }
+        // 1. Direct number check without saying "tap" (e.g. "5", "five", "1", "one", "7", "seven", "9", "nine")
+        parseSpokenNumber(lowerText)?.let { return it }
 
+        // 2. Number preceded by any tap prefix ("tap 5", "tab 5", "top five", "tap number 3", "tab #4")
         for (prefix in TAP_PREFIXES) {
             if (lowerText.startsWith("$prefix ")) {
                 val remainder = lowerText.substring(prefix.length).trim()
@@ -222,13 +243,13 @@ object CommandParser {
                 } else {
                     remainder
                 }
-                targetNumString.toIntOrNull()?.let { return it }
+                parseSpokenNumber(targetNumString)?.let { return it }
             }
         }
 
         if (lowerText.startsWith("number ")) {
             val numStr = lowerText.substring("number ".length).trim()
-            numStr.toIntOrNull()?.let { return it }
+            parseSpokenNumber(numStr)?.let { return it }
         }
 
         return null
