@@ -25,7 +25,7 @@ class AppLauncherManager(private val context: Context) {
 
     companion object {
         private const val TAG = "AppLauncherManager"
-        private const val TAG_LEETCODE = "VOSK_LEETCODE"
+        private const val TAG_LEETCODE = "VOICE_LEETCODE"
 
         // LeetCode speech normalization map
         private val LEETCODE_SPEECH_VARIATIONS = listOf(
@@ -68,12 +68,19 @@ class AppLauncherManager(private val context: Context) {
         }
 
         try {
-            val appMap = DynamicGrammarGenerator.scanAllLaunchableApps(context)
+            val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+            val resolveInfos: List<ResolveInfo> = packageManager.queryIntentActivities(mainIntent, 0)
 
             // Data structure holding app label and package name
             data class AppCandidate(val label: String, val packageName: String)
 
-            val installedApps = appMap.map { (pkg, label) -> AppCandidate(label, pkg) }
+            val installedApps = resolveInfos.mapNotNull { info ->
+                val label = info.loadLabel(packageManager).toString().trim()
+                val pkg = info.activityInfo.packageName
+                if (label.isNotBlank() && pkg.isNotBlank()) AppCandidate(label, pkg) else null
+            }
 
             if (installedApps.isEmpty()) {
                 Log.w(TAG, "No launcher applications found on device.")
