@@ -57,6 +57,21 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
     // Holds the latest partial or final recognized text
     private var currentText: String = ""
 
+    init {
+        val app = getApplication<Application>()
+        com.example.voicecontrol.manager.VoiceControlManager.init(app)
+        viewModelScope.launch {
+            com.example.voicecontrol.manager.VoiceControlManager.isVoiceControlActive.collect { active ->
+                _isVoiceControlActive.value = active
+                if (!active) {
+                    autoRestartJob?.cancel()
+                    speechManager.cancel()
+                    _uiState.value = VoiceUiState.Disabled
+                }
+            }
+        }
+    }
+
     /**
      * Opens Android System Accessibility Settings.
      */

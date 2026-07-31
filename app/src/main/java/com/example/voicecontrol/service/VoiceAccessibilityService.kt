@@ -33,6 +33,7 @@ class VoiceAccessibilityService : AccessibilityService() {
         try {
             Log.i(TAG, "VoiceAccessibilityService connected to System Accessibility Framework.")
             AccessibilityCommandManager.registerService(this)
+            com.example.voicecontrol.manager.VoiceControlManager.init(this)
         } catch (e: Exception) {
             Log.e(TAG, "Error during onServiceConnected", e)
         }

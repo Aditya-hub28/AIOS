@@ -51,6 +51,12 @@ class VoiceControlService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        com.example.voicecontrol.manager.VoiceControlManager.init(this)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        com.example.voicecontrol.manager.VoiceControlManager.stopBackTapDetection()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
