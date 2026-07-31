@@ -52,7 +52,7 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
 
     // Vosk Offline Speech Recognition Engine
-    implementation("com.alphacep:vosk-android:0.3.45")
+    implementation("com.alphacep:vosk-android:0.3.32")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
