@@ -9,6 +9,7 @@ import com.example.voicecontrol.manager.AccessibilityCommandManager
 import com.example.voicecontrol.manager.AppLaunchResult
 import com.example.voicecontrol.manager.AppLauncherManager
 import com.example.voicecontrol.manager.CommandParser
+import com.example.voicecontrol.manager.DynamicGrammarGenerator
 import com.example.voicecontrol.manager.SpeechEngineManager
 import com.example.voicecontrol.manager.SpeechRecognitionListener
 import com.example.voicecontrol.manager.VoiceCommand
@@ -26,7 +27,7 @@ import kotlinx.coroutines.launch
  * ViewModel managing business logic for sub-500ms voice recognition, real-time command execution,
  * multi-engine recognition switching (Native Android Engine vs Vosk Offline Engine),
  * 3x3 Grid Overlay progressive zoom ("Show Grid", "Click Here"), number overlays ("Show Numbers"),
- * text-based UI clicking ("Tap Search"), gesture navigation, app launching, global actions, and service lifecycle.
+ * text-based UI clicking ("Tap Search"), gesture navigation, app launching, LeetCode resolution, global actions, and service lifecycle.
  */
 class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -296,6 +297,20 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
         speechEngineManager.cancel()
 
         when (command) {
+            VoiceCommand.ListApps -> {
+                val t4_triggered = System.currentTimeMillis()
+                Log.i(PERF_TAG, "[PERF] [$engineName] 4. List Apps Triggered: $t4_triggered ms")
+
+                val context = getApplication<Application>().applicationContext
+                val appCount = DynamicGrammarGenerator.logAllInstalledApps(context)
+
+                val t5_completed = System.currentTimeMillis()
+                val totalLatency = t5_completed - t1_recognitionComplete
+
+                Log.i(PERF_TAG, "[PERF] [$engineName] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+
+                _uiState.value = VoiceUiState.Success(recognizedText = "Logged $appCount apps to Logcat (tag: VOSK_APPS)")
+            }
             VoiceCommand.ShowGrid -> {
                 val t4_triggered = System.currentTimeMillis()
                 Log.i(PERF_TAG, "[PERF] [$engineName] 4. Show Grid Triggered: $t4_triggered ms")

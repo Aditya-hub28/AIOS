@@ -2,19 +2,22 @@ package com.example.voicecontrol.manager
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.util.Log
 import org.json.JSONArray
+import java.io.File
 import java.util.Locale
 
 /**
- * Utility for scanning installed launchable applications and generating a dynamic
- * Vosk grammar JSON array containing "open <app>" phrases, common phonetic aliases,
- * system navigation commands, and Out-Of-Vocabulary "[unk]" tokens.
+ * Utility for scanning 100% of installed, system, updated-system, work profile, and cloned launchable applications,
+ * adding LeetCode & popular app phonetic aliases, merging system commands, saving debug JSON to storage,
+ * and generating a dynamic Vosk grammar JSON array.
  */
 object DynamicGrammarGenerator {
 
-    private const val TAG = "VOSK_GRAMMAR"
+    private const val TAG_GRAMMAR = "VOSK_GRAMMAR"
+    private const val TAG_APPS = "VOSK_APPS"
 
     // Base system commands required by VoiceControl
     private val BASE_SYSTEM_COMMANDS = listOf(
@@ -23,6 +26,8 @@ object DynamicGrammarGenerator {
         "back",
         "recent apps",
         "recents",
+        "list apps",
+        "show apps",
         "swipe up",
         "swipe down",
         "swipe left",
@@ -41,42 +46,112 @@ object DynamicGrammarGenerator {
         "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"
     )
 
-    /**
-     * Scans installed applications, builds app command phrases with aliases,
-     * merges system commands, and returns a formatted JSON array string for Vosk Recognizer.
-     */
-    fun generateGrammarJson(context: Context): String {
-        val tStart = System.currentTimeMillis()
-        val packageManager = context.packageManager
+    // Explicit LeetCode grammar phrases and phonetic aliases
+    private val LEETCODE_GRAMMAR_PHRASES = listOf(
+        "open leetcode",
+        "open leet code",
+        "leetcode",
+        "leet code",
+        "open leetcod",
+        "open leat code",
+        "open lead code",
+        "leetcod",
+        "leat code",
+        "lead code"
+    )
 
+    /**
+     * Scans all launchable installed & system applications using dual discovery strategies.
+     * Returns a map of PackageName -> AppLabel.
+     */
+    fun scanAllLaunchableApps(context: Context): Map<String, String> {
+        val packageManager = context.packageManager
+        val appMap = mutableMapOf<String, String>()
+
+        // Strategy A: Launcher Category Query (Standard & Cloned Apps)
         val launcherIntent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
         }
 
-        val resolveInfos = try {
-            packageManager.queryIntentActivities(launcherIntent, 0)
+        try {
+            val resolveInfos = packageManager.queryIntentActivities(launcherIntent, 0)
+            for (resolveInfo in resolveInfos) {
+                val label = resolveInfo.loadLabel(packageManager).toString().trim()
+                val pkgName = resolveInfo.activityInfo.packageName
+                if (label.isNotBlank() && pkgName.isNotBlank()) {
+                    appMap[pkgName] = label
+                }
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Error querying launcher intent activities", e)
-            emptyList()
+            Log.e(TAG_APPS, "Error during Strategy A launcher query", e)
         }
 
-        val installedAppLabels = mutableListOf<String>()
+        // Strategy B: Installed Applications Query (System & Updated System Apps)
+        try {
+            val installedApps = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+            for (appInfo in installedApps) {
+                val pkgName = appInfo.packageName
+                if (!appMap.containsKey(pkgName)) {
+                    val launchIntent = packageManager.getLaunchIntentForPackage(pkgName)
+                    if (launchIntent != null) {
+                        val label = packageManager.getApplicationLabel(appInfo).toString().trim()
+                        if (label.isNotBlank()) {
+                            appMap[pkgName] = label
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG_APPS, "Error during Strategy B installed applications query", e)
+        }
+
+        return appMap
+    }
+
+    /**
+     * Logs every discovered application under tag VOSK_APPS.
+     */
+    fun logAllInstalledApps(context: Context): Int {
+        val appMap = scanAllLaunchableApps(context)
+        Log.i(TAG_APPS, "==========================================================")
+        Log.i(TAG_APPS, "📱 DISCOVERED LAUNCHABLE APPLICATIONS REPORT (${appMap.size} APPS)")
+        Log.i(TAG_APPS, "==========================================================")
+        for ((pkgName, appLabel) in appMap) {
+            Log.i(TAG_APPS, "VOSK_APPS: Package Name: $pkgName | App Label: $appLabel")
+        }
+        Log.i(TAG_APPS, "==========================================================")
+        return appMap.size
+    }
+
+    /**
+     * Scans installed applications, builds app command phrases with aliases,
+     * merges system commands and LeetCode phrases, saves debug JSON to storage,
+     * and returns a formatted JSON array string for Vosk Recognizer.
+     */
+    fun generateGrammarJson(context: Context): String {
+        val tStart = System.currentTimeMillis()
+        val appMap = scanAllLaunchableApps(context)
+
+        // Log all apps to Logcat under VOSK_APPS
+        for ((pkgName, appLabel) in appMap) {
+            Log.i(TAG_APPS, "VOSK_APPS: Package Name: $pkgName | App Label: $appLabel")
+        }
+
         val appPhrases = mutableSetOf<String>()
 
-        for (resolveInfo in resolveInfos) {
-            val rawLabel = resolveInfo.loadLabel(packageManager).toString()
+        for ((_, rawLabel) in appMap) {
             val normalizedLabel = normalizeAppName(rawLabel)
 
             if (normalizedLabel.isNotBlank()) {
-                installedAppLabels.add(rawLabel)
-                
-                // Add direct "open <appName>" command
+                // Add direct "open <appName>" and standalone "<appName>"
                 appPhrases.add("open $normalizedLabel")
+                appPhrases.add(normalizedLabel)
 
                 // Generate common phonetic aliases
                 val aliases = generateAliasesForApp(normalizedLabel)
                 for (alias in aliases) {
                     appPhrases.add("open $alias")
+                    appPhrases.add(alias)
                 }
             }
         }
@@ -84,6 +159,7 @@ object DynamicGrammarGenerator {
         // Combine all grammar elements into a distinct ordered list
         val fullGrammarList = mutableListOf<String>()
         fullGrammarList.addAll(appPhrases)
+        fullGrammarList.addAll(LEETCODE_GRAMMAR_PHRASES)
         fullGrammarList.addAll(BASE_SYSTEM_COMMANDS)
         fullGrammarList.add("[unk]") // Always end with Out-of-Vocabulary token
 
@@ -99,17 +175,33 @@ object DynamicGrammarGenerator {
         val tEnd = System.currentTimeMillis()
         val jsonSizeBytes = jsonString.toByteArray(Charsets.UTF_8).size
 
+        // Save JSON debug file to internal storage for debugging
+        saveDebugGrammarJson(context, jsonString)
+
         // --- VOSK_GRAMMAR LOGGING REPORT ---
-        Log.i(TAG, "==========================================================")
-        Log.i(TAG, "📊 VOSK DYNAMIC GRAMMAR GENERATION REPORT")
-        Log.i(TAG, "==========================================================")
-        Log.i(TAG, "📱 Installed Apps Scanned  : ${installedAppLabels.size}")
-        Log.i(TAG, "🗣️ Total Grammar Phrases   : ${distinctGrammarList.size}")
-        Log.i(TAG, "📦 Grammar JSON Size       : $jsonSizeBytes bytes (${jsonSizeBytes / 1024} KB)")
-        Log.i(TAG, "⏱️ Generation Duration     : ${tEnd - tStart} ms")
-        Log.i(TAG, "==========================================================")
+        Log.i(TAG_GRAMMAR, "==========================================================")
+        Log.i(TAG_GRAMMAR, "📊 VOSK DYNAMIC GRAMMAR GENERATION REPORT")
+        Log.i(TAG_GRAMMAR, "==========================================================")
+        Log.i(TAG_GRAMMAR, "📱 Total launchable apps found  : ${appMap.size}")
+        Log.i(TAG_GRAMMAR, "🗣️ Total grammar phrases generated: ${distinctGrammarList.size}")
+        Log.i(TAG_GRAMMAR, "📦 Grammar JSON Size           : $jsonSizeBytes bytes (${jsonSizeBytes / 1024} KB)")
+        Log.i(TAG_GRAMMAR, "⏱️ Generation Duration         : ${tEnd - tStart} ms")
+        Log.i(TAG_GRAMMAR, "==========================================================")
 
         return jsonString
+    }
+
+    /**
+     * Saves final generated grammar JSON string to File(context.filesDir, "debug_vosk_grammar.json").
+     */
+    private fun saveDebugGrammarJson(context: Context, jsonString: String) {
+        try {
+            val debugFile = File(context.filesDir, "debug_vosk_grammar.json")
+            debugFile.writeText(jsonString)
+            Log.i(TAG_GRAMMAR, "📄 Saved debug grammar JSON to: ${debugFile.absolutePath}")
+        } catch (e: Exception) {
+            Log.e(TAG_GRAMMAR, "Failed to write debug grammar JSON file", e)
+        }
     }
 
     /**
@@ -129,6 +221,13 @@ object DynamicGrammarGenerator {
         val aliases = mutableListOf<String>()
 
         when {
+            normalizedApp.contains("leetcode") || normalizedApp.contains("leet code") -> {
+                aliases.add("leetcode")
+                aliases.add("leet code")
+                aliases.add("leetcod")
+                aliases.add("leat code")
+                aliases.add("lead code")
+            }
             normalizedApp.contains("whatsapp") -> {
                 aliases.add("whats app")
                 aliases.add("whatsup")

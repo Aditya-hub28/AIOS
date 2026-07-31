@@ -80,6 +80,11 @@ sealed interface VoiceCommand {
     object ClickHere : VoiceCommand
 
     /**
+     * Debug intent to log all discovered launchable applications to Logcat under VOSK_APPS.
+     */
+    object ListApps : VoiceCommand
+
+    /**
      * Unrecognized or unhandled voice command.
      * @param rawText Full original spoken text.
      */
@@ -105,7 +110,14 @@ object CommandParser {
 
         val lowerText = trimmedText.lowercase(Locale.getDefault())
 
-        // 1. Check for Grid Overlay commands
+        // 1. Check for Debug "list apps" voice command
+        when (lowerText) {
+            "list apps", "show apps", "all apps", "list all apps", "log apps" -> {
+                return VoiceCommand.ListApps
+            }
+        }
+
+        // 2. Check for Grid Overlay commands
         when (lowerText) {
             "show grid", "show the grid", "display grid", "grid on", "open grid" -> {
                 return VoiceCommand.ShowGrid
@@ -121,7 +133,7 @@ object CommandParser {
             }
         }
 
-        // 2. Check for Show Numbers / Hide Numbers voice commands
+        // 3. Check for Show Numbers / Hide Numbers voice commands
         when (lowerText) {
             "show numbers", "show number", "display numbers", "numbers on", "show badge numbers" -> {
                 return VoiceCommand.ShowNumbers
@@ -131,13 +143,13 @@ object CommandParser {
             }
         }
 
-        // 3. Check for Tap Number / Grid Cell voice commands ("Tap 5", "Tap number 5", "Click 12", or pure digits "5")
+        // 4. Check for Tap Number / Grid Cell voice commands ("Tap 5", "Tap number 5", "Click 12", or pure digits "5")
         val numberFromTap = parseTapNumberCommand(lowerText, trimmedText)
         if (numberFromTap != null) {
             return VoiceCommand.TapNumber(numberFromTap)
         }
 
-        // 4. Check for Text-Based Click voice commands ("Tap Search", "Click Settings")
+        // 5. Check for Text-Based Click voice commands ("Tap Search", "Click Settings")
         for (prefix in TAP_PREFIXES) {
             if (lowerText.startsWith("$prefix ")) {
                 val targetText = trimmedText.substring(prefix.length).trim()
@@ -147,7 +159,7 @@ object CommandParser {
             }
         }
 
-        // 5. Check for Gesture Navigation voice commands (Swipe Up, Swipe Down, Swipe Left, Swipe Right)
+        // 6. Check for Gesture Navigation voice commands (Swipe Up, Swipe Down, Swipe Left, Swipe Right)
         when (lowerText) {
             "swipe up", "swipe upward", "upward swipe", "scroll down", "down", "page down" -> {
                 return VoiceCommand.SwipeGesture(GestureType.SWIPE_UP, "Swipe Up")
@@ -163,7 +175,7 @@ object CommandParser {
             }
         }
 
-        // 6. Check for Global Action voice commands
+        // 7. Check for Global Action voice commands
         when (lowerText) {
             "go home", "home", "go to home", "open home", "take me home" -> {
                 return VoiceCommand.GlobalAction(
@@ -185,7 +197,7 @@ object CommandParser {
             }
         }
 
-        // 7. Check for App Opening voice commands
+        // 8. Check for App Opening voice commands ("open leetcode", "leetcode", "open whatsapp")
         for (prefix in OPEN_PREFIXES) {
             if (lowerText.startsWith("$prefix ")) {
                 val extractedName = trimmedText.substring(prefix.length).trim()
@@ -194,6 +206,11 @@ object CommandParser {
                     return VoiceCommand.OpenApp(cleanedName)
                 }
             }
+        }
+
+        // Standalone app name launch fallback (e.g. "leetcode", "whatsapp")
+        if (!lowerText.contains(" ")) {
+            return VoiceCommand.OpenApp(trimmedText)
         }
 
         return VoiceCommand.Unknown(trimmedText)
