@@ -5,9 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ResolveInfo
 import android.util.Log
+import com.example.voicecontrol.manager.CommandParser
 import com.example.voicecontrol.manager.GestureType
 import com.example.voicecontrol.manager.SpeechRecognitionListener
 import com.example.voicecontrol.manager.SpeechRecognizerManager
+import com.example.voicecontrol.manager.VoiceCommand
 import com.example.voicecontrol.model.GrammarCategory
 import com.example.voicecontrol.model.GrammarIntent
 import com.example.voicecontrol.model.GrammarResult
@@ -164,6 +166,8 @@ class CommandGrammarEngine(private val context: Context) {
             logGrammarReport(rawText, normalizedText, result)
             return result
         }
+
+        when (lowerText) {
             "show numbers", "show number", "display numbers", "numbers on", "show badge numbers" -> {
                 val result = GrammarResult(
                     intent = GrammarIntent.GridAction(GridActionType.SHOW_NUMBERS),
