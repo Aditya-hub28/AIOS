@@ -109,7 +109,7 @@ object CommandParser {
         // 1. Check for Grid Overlay commands (including phonetic fuzzy variations: "so grid", "saw grid", "shoe grid", "show grit", "sure grid")
         when (lowerText) {
             "show grid", "show the grid", "display grid", "grid on", "open grid",
-            "so grid", "saw grid", "shoe grid", "show great", "show grit", "so great", "so grit", "show red", "so red", "sure grid" -> {
+            "so grid", "saw grid", "shoe grid", "sho grid", "sow grid", "show great", "show grit", "show gre", "show gridd", "show gridr", "show the greid", "show grd", "so great", "so grit", "show red", "so red", "sure grid" -> {
                 return VoiceCommand.ShowGrid
             }
             "hide grid", "hide the grid", "remove grid", "grid off", "close grid",
