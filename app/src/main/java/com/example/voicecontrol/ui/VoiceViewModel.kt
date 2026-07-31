@@ -1,7 +1,9 @@
 package com.example.voicecontrol.ui
 
 import android.app.Application
+import android.content.pm.PackageManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.voicecontrol.manager.AccessibilityCommandManager
