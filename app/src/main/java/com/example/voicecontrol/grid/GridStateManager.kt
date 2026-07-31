@@ -47,6 +47,11 @@ object GridStateManager {
         if (newCols != null && newCols > 0) {
             cols = newCols.coerceIn(MIN_GRID_DIM, MAX_GRID_DIM)
         }
+        // Always reset grid bounds to full screen display area
+        if (!initialScreenBounds.isEmpty) {
+            currentBounds = RectF(initialScreenBounds)
+        }
+        zoomDepth = 0
         logGridState(rawCommand)
     }
 
