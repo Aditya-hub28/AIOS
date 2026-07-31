@@ -37,7 +37,7 @@ class BackTapDetector(
         // Timing Rules
         private const val DEBOUNCE_INTERVAL_MS = 80L // Ignore repeated sensor spikes for 80ms (allows fast consecutive taps)
         private const val TRIPLE_TAP_WINDOW_MS = 1200L // 3 taps must complete within 1200ms window
-        private const val LOCKOUT_PERIOD_MS = 1000L // Cool-down period after successful detection
+        private const val LOCKOUT_PERIOD_MS = 600L // Cool-down period after successful detection (allows quick re-triggering)
         private const val MAX_VIBRATION_SPIKES_IN_WINDOW = 4 // Vehicle vibration suppression threshold
     }
 

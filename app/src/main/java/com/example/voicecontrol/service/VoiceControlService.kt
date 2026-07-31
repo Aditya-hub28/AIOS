@@ -56,7 +56,7 @@ class VoiceControlService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        com.example.voicecontrol.manager.VoiceControlManager.stopBackTapDetection()
+        // Do not stop BackTapDetector so triple back tap can continue monitoring to turn Voice Control back ON
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
