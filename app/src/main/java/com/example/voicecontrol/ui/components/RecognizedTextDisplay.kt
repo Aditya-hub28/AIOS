@@ -160,7 +160,7 @@ fun RecognizedTextDisplay(
                         is VoiceUiState.Listening -> "Listening... Speak your command now."
                         is VoiceUiState.Processing -> "Converting speech to text..."
                         is VoiceUiState.Error -> "Tap microphone to try again."
-                        else -> "Try speaking a command such as:\n\n\"Scroll Down\" / \"Scroll Up\"\n\"Go Home\" / \"Back\"\n\"Recent Apps\"\n\"Open WhatsApp\""
+                        else -> "Try speaking a command such as:\n\n\"Scroll Down\" / \"Scroll Up\"\n\"Swipe Left\" / \"Swipe Right\"\n\"Go Home\" / \"Back\"\n\"Open WhatsApp\""
                     }
                     Text(
                         text = placeholderText,

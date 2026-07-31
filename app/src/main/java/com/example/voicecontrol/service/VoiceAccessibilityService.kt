@@ -8,10 +8,11 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.example.voicecontrol.manager.AccessibilityCommandManager
+import com.example.voicecontrol.manager.GestureType
 
 /**
  * Dedicated Accessibility Service for executing Android global actions (Home, Back, Recent Apps)
- * and voice-controlled scrolling (Scroll Down, Scroll Up) across all apps.
+ * and gesture navigation commands (Scroll Down, Scroll Up, Swipe Left, Swipe Right) across all apps.
  * Hardened against crashes to maintain continuous system stability.
  */
 class VoiceAccessibilityService : AccessibilityService() {
@@ -31,41 +32,118 @@ class VoiceAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Scrolls the currently active window or focused scrollable container.
-     * @param isForward True for Scroll Down, False for Scroll Up.
-     * @return True if scroll action or gesture was successfully performed.
+     * Executes gesture navigation commands (Scroll Down, Scroll Up, Swipe Left, Swipe Right).
+     * @param type GestureType enum indicating direction.
+     * @return True if gesture or node action was successfully dispatched.
      */
-    fun performScroll(isForward: Boolean): Boolean {
+    fun performGestureNavigation(type: GestureType): Boolean {
         return try {
-            val rootNode = rootInActiveWindow
-            if (rootNode != null) {
-                val targetNode = findScrollableNode(rootNode, isForward)
-                if (targetNode != null) {
-                    val action = if (isForward) {
-                        AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-                    } else {
-                        AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-                    }
-                    val nodeScrolled = targetNode.performAction(action)
-                    try { targetNode.recycle() } catch (_: Exception) {}
-                    try { rootNode.recycle() } catch (_: Exception) {}
-
-                    if (nodeScrolled) {
-                        Log.i(TAG, "Successfully scrolled active node container.")
-                        return true
-                    }
-                } else {
-                    try { rootNode.recycle() } catch (_: Exception) {}
-                }
+            when (type) {
+                GestureType.SCROLL_DOWN -> performScrollNodeOrGesture(isForward = true)
+                GestureType.SCROLL_UP -> performScrollNodeOrGesture(isForward = false)
+                GestureType.SWIPE_LEFT -> performHorizontalSwipe(isLeft = true)
+                GestureType.SWIPE_RIGHT -> performHorizontalSwipe(isLeft = false)
             }
-
-            // Fallback: Perform smooth swipe gesture for WebViews, Instagram Reels, Chrome, etc.
-            Log.i(TAG, "No direct scrollable node found. Dispatching gesture swipe fallback.")
-            performSwipeGesture(isForward)
         } catch (e: Exception) {
-            Log.e(TAG, "Error performing scroll action", e)
+            Log.e(TAG, "Error executing gesture navigation $type", e)
             false
         }
+    }
+
+    /**
+     * Scrolls active container via node action first, falling back to dynamic vertical gesture swipe.
+     */
+    private fun performScrollNodeOrGesture(isForward: Boolean): Boolean {
+        val rootNode = rootInActiveWindow
+        if (rootNode != null) {
+            val targetNode = findScrollableNode(rootNode, isForward)
+            if (targetNode != null) {
+                val action = if (isForward) {
+                    AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+                } else {
+                    AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+                }
+                val nodeScrolled = targetNode.performAction(action)
+                try { targetNode.recycle() } catch (_: Exception) {}
+                try { rootNode.recycle() } catch (_: Exception) {}
+
+                if (nodeScrolled) {
+                    Log.i(TAG, "Successfully scrolled active node container via node action.")
+                    return true
+                }
+            } else {
+                try { rootNode.recycle() } catch (_: Exception) {}
+            }
+        }
+
+        Log.i(TAG, "No direct scrollable node action performed. Dispatching dynamic vertical gesture fallback.")
+        return performVerticalSwipe(isForward)
+    }
+
+    /**
+     * Performs a vertical swipe gesture using dynamic screen dimensions.
+     */
+    private fun performVerticalSwipe(isForward: Boolean): Boolean {
+        val metrics: DisplayMetrics = resources.displayMetrics
+        val width = metrics.widthPixels.toFloat()
+        val height = metrics.heightPixels.toFloat()
+
+        val startX = width / 2f
+        val startY: Float
+        val endY: Float
+
+        if (isForward) {
+            // Scroll Down: Swipe UP from bottom (75% height) to top (25% height)
+            startY = height * 0.75f
+            endY = height * 0.25f
+        } else {
+            // Scroll Up: Swipe DOWN from top (25% height) to bottom (75% height)
+            startY = height * 0.25f
+            endY = height * 0.75f
+        }
+
+        return dispatchSwipeGesture(startX, startY, startX, endY)
+    }
+
+    /**
+     * Performs a horizontal swipe gesture (Swipe Left / Swipe Right) using dynamic screen dimensions.
+     */
+    private fun performHorizontalSwipe(isLeft: Boolean): Boolean {
+        val metrics: DisplayMetrics = resources.displayMetrics
+        val width = metrics.widthPixels.toFloat()
+        val height = metrics.heightPixels.toFloat()
+
+        val centerY = height * 0.5f
+        val startX: Float
+        val endX: Float
+
+        if (isLeft) {
+            // Swipe Left: Finger moves right (85% width) to left (15% width)
+            startX = width * 0.85f
+            endX = width * 0.15f
+        } else {
+            // Swipe Right: Finger moves left (15% width) to right (85% width)
+            startX = width * 0.15f
+            endX = width * 0.85f
+        }
+
+        return dispatchSwipeGesture(startX, centerY, endX, centerY)
+    }
+
+    /**
+     * Low-level helper building and dispatching GestureDescription stroke paths.
+     */
+    private fun dispatchSwipeGesture(startX: Float, startY: Float, endX: Float, endY: Float): Boolean {
+        val swipePath = Path().apply {
+            moveTo(startX, startY)
+            lineTo(endX, endY)
+        }
+
+        val gestureBuilder = GestureDescription.Builder()
+        val strokeDescription = GestureDescription.StrokeDescription(swipePath, 0L, 250L)
+        gestureBuilder.addStroke(strokeDescription)
+
+        return dispatchGesture(gestureBuilder.build(), null, null)
     }
 
     /**
@@ -81,7 +159,6 @@ class VoiceAccessibilityService : AccessibilityService() {
                 AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD
             }
 
-            // Check if node supports scroll action
             if (node.isScrollable && node.actionList.contains(targetAction)) {
                 return node
             }
@@ -101,47 +178,8 @@ class VoiceAccessibilityService : AccessibilityService() {
         return null
     }
 
-    /**
-     * Performs a vertical swipe gesture as a universal fallback for custom views and WebViews.
-     */
-    private fun performSwipeGesture(isForward: Boolean): Boolean {
-        return try {
-            val metrics: DisplayMetrics = resources.displayMetrics
-            val width = metrics.widthPixels.toFloat()
-            val height = metrics.heightPixels.toFloat()
-
-            val startX = width / 2f
-            val startY: Float
-            val endY: Float
-
-            if (isForward) {
-                // Scroll Down: Swipe UP from bottom (75% height) to top (25% height)
-                startY = height * 0.75f
-                endY = height * 0.25f
-            } else {
-                // Scroll Up: Swipe DOWN from top (25% height) to bottom (75% height)
-                startY = height * 0.25f
-                endY = height * 0.75f
-            }
-
-            val swipePath = Path().apply {
-                moveTo(startX, startY)
-                lineTo(startX, endY)
-            }
-
-            val gestureBuilder = GestureDescription.Builder()
-            val strokeDescription = GestureDescription.StrokeDescription(swipePath, 0L, 250L)
-            gestureBuilder.addStroke(strokeDescription)
-
-            dispatchGesture(gestureBuilder.build(), null, null)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error performing swipe gesture", e)
-            false
-        }
-    }
-
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Kept lightweight to maximize responsiveness and prevent system event queue bottlenecks
+        // Lightweight event handler
     }
 
     override fun onInterrupt() {

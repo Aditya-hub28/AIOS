@@ -23,7 +23,8 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel managing business logic for sub-500ms voice recognition, real-time command execution,
- * voice-controlled scrolling, app launching, global actions, and foreground service lifecycle.
+ * gesture navigation (Scroll Down, Scroll Up, Swipe Left, Swipe Right), app launching, global actions,
+ * and foreground service lifecycle.
  */
 class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -46,7 +47,7 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
     private var lastVolumeUpTime: Long = 0L
     private var lastToggleTime: Long = 0L
 
-    // Duplicate command prevention tracking (500ms window)
+    // Duplicate command prevention tracking (600ms window)
     private var lastExecutedCommand: String = ""
     private var lastExecutedTime: Long = 0L
 
@@ -235,7 +236,7 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
         autoRestartJob?.cancel()
         autoRestartJob = viewModelScope.launch {
             if (!immediate) {
-                delay(300L) // Fast 300ms delay between cycles
+                delay(300L)
             }
             if (_isVoiceControlActive.value) {
                 startListening()
@@ -280,21 +281,21 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
         speechManager.cancel()
 
         when (command) {
-            is VoiceCommand.Scroll -> {
+            is VoiceCommand.GestureNav -> {
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] 4. Accessibility Action Triggered: $t4_triggered ms | Action: ${command.commandName}")
+                Log.i(PERF_TAG, "[PERF] 4. Accessibility Gesture Triggered: $t4_triggered ms | Gesture: ${command.label}")
 
-                val success = AccessibilityCommandManager.performScroll(command.isForward)
+                val success = AccessibilityCommandManager.performGestureNavigation(command.type)
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
                 Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (success) {
-                    _uiState.value = VoiceUiState.Success(recognizedText = "Action: ${command.commandName}")
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Action: ${command.label}")
                 } else {
                     _uiState.value = VoiceUiState.Error(
-                        message = "Unable to scroll. Ensure Accessibility Service is enabled."
+                        message = "Unable to execute ${command.label}. Ensure Accessibility Service is enabled."
                     )
                 }
             }

@@ -1,5 +1,9 @@
 [
     {
+        "merged": "C:\\Users\\LENOVO\\.gradle\\daemon\\9.3.0\\com.example.voicecontrol.app-debug-49:\\xml_accessibility_service_config.xml.flat",
+        "source": "C:\\Users\\LENOVO\\.gradle\\daemon\\9.3.0\\com.example.voicecontrol.app-main-51:\\xml\\accessibility_service_config.xml"
+    },
+    {
         "merged": "com.example.voicecontrol.app-debug-49:/xml_accessibility_service_config.xml.flat",
         "source": "com.example.voicecontrol.app-main-51:/xml/accessibility_service_config.xml"
     },

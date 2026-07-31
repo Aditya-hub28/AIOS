@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Singleton manager routing global action and scroll execution requests to the active VoiceAccessibilityService.
- * Extensible for future accessibility features (gestures, overlay, node inspection).
+ * Singleton manager routing global action, scroll, and gesture execution requests to the active VoiceAccessibilityService.
+ * Extensible for future accessibility features (overlay, node inspection).
  */
 object AccessibilityCommandManager {
 
@@ -57,17 +57,16 @@ object AccessibilityCommandManager {
     }
 
     /**
-     * Executes scrolling on the currently active window or focused scrollable container.
-     * @param isForward True for Scroll Down, False for Scroll Up.
+     * Executes gesture navigation (Scroll Down, Scroll Up, Swipe Left, Swipe Right).
      */
-    fun performScroll(isForward: Boolean): Boolean {
+    fun performGestureNavigation(type: GestureType): Boolean {
         val service = serviceInstance
         if (service != null) {
-            val result = service.performScroll(isForward)
-            Log.i(TAG, "Executed performScroll(isForward=$isForward): $result")
+            val result = service.performGestureNavigation(type)
+            Log.i(TAG, "Executed performGestureNavigation($type): $result")
             return result
         } else {
-            Log.w(TAG, "Unable to perform scroll: VoiceAccessibilityService is not connected.")
+            Log.w(TAG, "Unable to perform gesture $type: VoiceAccessibilityService is not connected.")
             return false
         }
     }
