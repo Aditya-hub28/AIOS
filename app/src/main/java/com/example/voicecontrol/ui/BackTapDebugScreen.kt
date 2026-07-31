@@ -19,13 +19,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
@@ -46,14 +44,13 @@ import androidx.compose.ui.unit.sp
 import com.example.voicecontrol.manager.BackTapDebugManager
 
 /**
- * Production In-App Columbus ML Back Tap Debug Dashboard (Jetpack Compose).
- * Features: Live 50Hz sensor telemetry, ML Gesture Confidence Gauge (0-100%),
- * TFLite Inference Latency, State Machine badges, Motion Classifiers, and 200-event Feed.
+ * Production-Grade In-App Developer Debug Screen & Telemetry HUD Dashboard.
+ * Displays real-time sensor updates (10-20 FPS), 3-axis peak analysis (X, Y, Z), Z-dominance ratio,
+ * screen-touch suppression status, rolling timestamps, sequence state, and live 200-event feed.
  */
 @Composable
 fun BackTapDebugScreen(
-    modifier: Modifier = Modifier,
-    onClose: (() -> Unit)? = null
+    onClose: () -> Unit
 ) {
     val context = LocalContext.current
     val telemetry by BackTapDebugManager.telemetry.collectAsState()
@@ -63,19 +60,18 @@ fun BackTapDebugScreen(
     val confidencePct = (telemetry.minImpulse * 100f).coerceIn(0f, 100f)
 
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF121212))
-            .padding(14.dp)
+            .padding(12.dp)
     ) {
-        // --- HEADER CARD ---
+        // --- TOP TOOLBAR HEADER ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            shape = RoundedCornerShape(16.dp)
         ) {
-            Column(modifier = Modifier.padding(14.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -83,20 +79,21 @@ fun BackTapDebugScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.Psychology,
-                            contentDescription = "ML Engine",
-                            tint = Color(0xFF00E676)
+                            imageVector = Icons.Default.BugReport,
+                            contentDescription = "Debug Icon",
+                            tint = Color(0xFF00E676),
+                            modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Columbus ML Back Tap Engine",
-                            fontSize = 17.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                     }
 
-                    if (onClose != null) {
+                    Row {
                         OutlinedButton(onClick = onClose) {
                             Text("Close", color = Color.White)
                         }
@@ -195,7 +192,83 @@ fun BackTapDebugScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- SCREEN TOUCH SUPPRESSION CARD ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Column(modifier = Modifier.padding(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.TouchApp,
+                            contentDescription = "Touch Suppression",
+                            tint = if (telemetry.isSuppressionActive) Color(0xFFFF5252) else Color(0xFF00E676),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("SCREEN TOUCH SUPPRESSION", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = if (telemetry.isSuppressionActive) Color(0xFFFF5252) else Color(0xFF1B5E20),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = if (telemetry.isSuppressionActive) "SUPPRESSION ACTIVE (250ms)" else "READY",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    MetricCell("Touch TS", if (telemetry.touchTimestampMs > 0) "${telemetry.touchTimestampMs} ms" else "None")
+                    MetricCell("Impulse TS", if (telemetry.impulseTimestampMs > 0) "${telemetry.impulseTimestampMs} ms" else "None")
+                    MetricCell("Z Dominance Ratio", "${"%.0f".format(telemetry.zDominanceRatio * 100f)}% (Req >= 65%)", isHighlight = telemetry.zDominanceRatio >= 0.65f)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- IMPULSE DIRECTION & AXIS BREAKDOWN CARD ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                MetricCell("X Peak", "%.2f".format(telemetry.xPeak))
+                MetricCell("Y Peak", "%.2f".format(telemetry.yPeak))
+                MetricCell("Z Peak", "%.2f".format(telemetry.zPeak), isHighlight = true)
+                MetricCell("Jerk Peak", "%.2f".format(telemetry.jerk))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // --- ML GESTURE CONFIDENCE CARD ---
         Card(
@@ -203,7 +276,7 @@ fun BackTapDebugScreen(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
             shape = RoundedCornerShape(14.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
+            Column(modifier = Modifier.padding(10.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -216,27 +289,27 @@ fun BackTapDebugScreen(
                         color = Color(0xFF00E676)
                     )
                     Text(
-                        text = "${"%.1f".format(confidencePct)}%  (Threshold >= 85%)",
-                        fontSize = 12.sp,
+                        text = "${"%.1f".format(confidencePct)}%  (Threshold >= 88%)",
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (confidencePct >= 85f) Color(0xFF00E676) else Color(0xFFFFD600)
+                        color = if (confidencePct >= 88f) Color(0xFF00E676) else Color(0xFFFFD600)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 LinearProgressIndicator(
                     progress = { (confidencePct / 100f).coerceIn(0f, 1f) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(10.dp),
-                    color = if (confidencePct >= 85f) Color(0xFF00E676) else if (confidencePct >= 50f) Color(0xFFFFD600) else Color(0xFFFF5252),
+                        .height(8.dp),
+                    color = if (confidencePct >= 88f) Color(0xFF00E676) else if (confidencePct >= 50f) Color(0xFFFFD600) else Color(0xFFFF5252),
                     trackColor = Color.DarkGray
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // --- TAP COUNTER & PERFORMANCE PANEL ---
         Card(
@@ -247,7 +320,7 @@ fun BackTapDebugScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 MetricCell("Sequence", telemetry.sequenceText, isHighlight = true)
@@ -257,12 +330,12 @@ fun BackTapDebugScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // --- LIVE EVENT FEED (LAST 200 EVENTS) ---
         Text(
             text = "LIVE EVENT FEED (${eventLogs.size} / 200)",
-            fontSize = 12.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = Color.LightGray
         )
@@ -307,7 +380,7 @@ private fun MetricCell(label: String, value: String, isHighlight: Boolean = fals
         Text(text = label, fontSize = 9.sp, color = Color.Gray)
         Text(
             text = value,
-            fontSize = 12.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = if (isHighlight) Color(0xFFFFD600) else Color.White
         )
@@ -317,20 +390,23 @@ private fun MetricCell(label: String, value: String, isHighlight: Boolean = fals
 @Composable
 private fun EventLogRow(logText: String) {
     val isTriple = logText.contains("TRIPLE_TAP")
-    val isValid = logText.contains("VALID_TAP") || logText.contains("SEQUENCE_STARTED")
-    val isNoise = logText.contains("NOISE") || logText.contains("REJECTED") || logText.contains("SEQUENCE_RESET")
+    val isAccepted = logText.contains("BACK_TAP_ACCEPTED") || logText.contains("VALID_TAP") || logText.contains("SEQUENCE_STARTED")
+    val isSuppressed = logText.contains("SCREEN_TAP_SUPPRESSED")
+    val isRejected = logText.contains("BACK_TAP_REJECTED") || logText.contains("REJECTED") || logText.contains("SEQUENCE_RESET")
 
     val bgColor = when {
         isTriple -> Color(0xFF1B5E20)
-        isValid -> Color(0xFF33691E)
-        isNoise -> Color(0xFF3E2723)
+        isAccepted -> Color(0xFF2E7D32)
+        isSuppressed -> Color(0xFFE65100)
+        isRejected -> Color(0xFFB71C1C)
         else -> Color(0xFF212121)
     }
 
     val textColor = when {
         isTriple -> Color(0xFFB9F6CA)
-        isValid -> Color(0xFFCCFF90)
-        isNoise -> Color(0xFFFF8A80)
+        isAccepted -> Color(0xFFCCFF90)
+        isSuppressed -> Color(0xFFFFE0B2)
+        isRejected -> Color(0xFFFF8A80)
         else -> Color.White
     }
 
@@ -344,7 +420,7 @@ private fun EventLogRow(logText: String) {
             text = logText,
             color = textColor,
             fontSize = 11.sp,
-            fontWeight = if (isTriple || isValid) FontWeight.Bold else FontWeight.Normal
+            fontWeight = if (isTriple || isAccepted || isSuppressed) FontWeight.Bold else FontWeight.Normal
         )
     }
 }

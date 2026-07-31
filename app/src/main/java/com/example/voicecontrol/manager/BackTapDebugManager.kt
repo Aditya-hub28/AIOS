@@ -12,6 +12,7 @@ import java.util.Locale
 
 /**
  * Telemetry snapshot data model matching exact Back Tap Debug Dashboard specification.
+ * Includes impulse direction analysis (X, Y, Z peaks & Z dominance ratio) and screen-touch suppression status.
  */
 data class BackTapTelemetry(
     val accelX: Float = 0f, val accelY: Float = 0f, val accelZ: Float = 0f,
@@ -19,13 +20,16 @@ data class BackTapTelemetry(
     val gyroX: Float = 0f, val gyroY: Float = 0f, val gyroZ: Float = 0f,
     val magnitude: Float = 0f,
     val peak: Float = 0f,
+    val xPeak: Float = 0f,
+    val yPeak: Float = 0f,
     val zPeak: Float = 0f,
+    val zDominanceRatio: Float = 0f,
     val jerk: Float = 0f,
     val gyroMag: Float = 0f,
     val minImpulse: Float = 0.30f,
     val maxImpulse: Float = 5.00f,
-    val minJerk: Float = 0.35f,
-    val maxGyro: Float = 1.50f,
+    val minJerk: Float = 0.48f,
+    val maxGyro: Float = 0.45f,
     val stateName: String = "IDLE",       // IDLE, POSSIBLE_TAP, VALID_TAP, TRIPLE_TAP
     val motionName: String = "STILL",     // STILL, MOVING, SHAKING, BACK_TAP_LIKE
     val tapCount: Int = 0,
@@ -33,7 +37,10 @@ data class BackTapTelemetry(
     val tapTimestampsList: List<Long> = emptyList(), // [t1, t2, t3]
     val timeSinceLastTapMs: Long = 0L,
     val sensorEventsPerSec: Int = 50,     // Sensor Events/sec (Hz)
-    val detectionLatencyMs: Long = 1      // Detection Latency (ms)
+    val detectionLatencyMs: Long = 1,     // Detection Latency (ms)
+    val touchTimestampMs: Long = 0L,
+    val impulseTimestampMs: Long = 0L,
+    val isSuppressionActive: Boolean = false
 )
 
 /**
@@ -66,11 +73,12 @@ object BackTapDebugManager {
         ax: Float, ay: Float, az: Float,
         lx: Float, ly: Float, lz: Float,
         gx: Float, gy: Float, gz: Float,
-        mag: Float, peak: Float, zp: Float, jk: Float, gm: Float,
+        mag: Float, peak: Float, xp: Float, yp: Float, zp: Float, zRatio: Float, jk: Float, gm: Float,
         minImp: Float, maxImp: Float, minJk: Float, maxGy: Float,
         state: String, motion: String, count: Int,
         seqText: String, timestamps: List<Long>,
-        timeSinceLastTap: Long, latencyMs: Long
+        timeSinceLastTap: Long, latencyMs: Long,
+        touchTs: Long, impulseTs: Long, isSuppressed: Boolean
     ) {
         val now = SystemClock.uptimeMillis()
         eventCountWindow++
@@ -88,13 +96,17 @@ object BackTapDebugManager {
             accelX = ax, accelY = ay, accelZ = az,
             linX = lx, linY = ly, linZ = lz,
             gyroX = gx, gyroY = gy, gyroZ = gz,
-            magnitude = mag, peak = peak, zPeak = zp, jerk = jk, gyroMag = gm,
+            magnitude = mag, peak = peak, xPeak = xp, yPeak = yp, zPeak = zp,
+            zDominanceRatio = zRatio, jerk = jk, gyroMag = gm,
             minImpulse = minImp, maxImpulse = maxImp, minJerk = minJk, maxGyro = maxGy,
             stateName = state, motionName = motion, tapCount = count,
             sequenceText = seqText, tapTimestampsList = timestamps,
             timeSinceLastTapMs = timeSinceLastTap,
             sensorEventsPerSec = currentHz,
-            detectionLatencyMs = latencyMs
+            detectionLatencyMs = latencyMs,
+            touchTimestampMs = touchTs,
+            impulseTimestampMs = impulseTs,
+            isSuppressionActive = isSuppressed
         )
     }
 

@@ -344,6 +344,16 @@ class VoiceAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event != null) {
+            when (event.eventType) {
+                AccessibilityEvent.TYPE_VIEW_CLICKED,
+                AccessibilityEvent.TYPE_VIEW_FOCUSED,
+                AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED -> {
+                    com.example.voicecontrol.util.ScreenTouchTracker.onScreenTouch()
+                }
+            }
+        }
+
         // Auto-refresh overlays on screen content changes if overlays are active
         if (NumberOverlayManager.isOverlaysVisible()) {
             if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {

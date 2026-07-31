@@ -49,4 +49,11 @@ class MainActivity : ComponentActivity() {
         }
         return super.onKeyDown(keyCode, event)
     }
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent?): Boolean {
+        if (ev?.action == android.view.MotionEvent.ACTION_DOWN) {
+            com.example.voicecontrol.util.ScreenTouchTracker.onScreenTouch()
+        }
+        return super.dispatchTouchEvent(ev)
+    }
 }

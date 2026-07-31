@@ -8,6 +8,7 @@ import android.hardware.SensorManager
 import android.os.SystemClock
 import android.util.Log
 import com.example.voicecontrol.manager.BackTapDebugManager
+import com.example.voicecontrol.util.ScreenTouchTracker
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.nio.ByteBuffer
@@ -20,7 +21,8 @@ import kotlin.math.sqrt
 
 /**
  * Production-Grade Machine Learning Back Tap Classifier based on Google Pixel's Columbus / NanoApp ML Architecture.
- * Golden Sweet Spot Calibration: Differentiates physical finger shockwaves (Jerk >= 0.48) from smooth hand movements (Gyro > 0.45).
+ * Differentiates Screen Taps vs Back Taps via Dominant Z-Axis Impulse Analysis (zRatio >= 0.65) and 250ms Screen-Touch Suppression.
+ * Optimized for Android 12 to Android 16 (Baklava).
  */
 class ColumbusMlTapDetector(
     private val context: Context,
@@ -35,8 +37,10 @@ class ColumbusMlTapDetector(
         // ML Feature Extraction Parameters
         private const val SAMPLE_WINDOW_SIZE = 50   // 50 samples (~1000ms window at 50Hz)
         private const val FEATURE_COUNT = 6         // 6 axes: ax, ay, az, gx, gy, gz
-        private const val CONFIDENCE_THRESHOLD = 0.88f // Require >= 88% ML Confidence as requested
+        private const val CONFIDENCE_THRESHOLD = 0.88f // Require >= 88% ML Confidence for sweet spot precision
         private const val ALPHA_LOW_PASS = 0.82f     // Low-pass filter for orientation-independent gravity tracking
+        private const val MIN_Z_DOMINANCE_RATIO = 0.65f // Back tap requires Z-axis impulse to represent >= 65% of total vector energy
+        private const val SCREEN_TOUCH_LOCKOUT_MS = 250L // Ignore back taps within 250ms of a screen touch
 
         // Timing & Sequence Rules
         private const val SAMPLING_PERIOD_MS = 20L      // 50Hz sampling
@@ -177,12 +181,18 @@ class ColumbusMlTapDetector(
                 hpY = rawY - lpY
                 hpZ = rawZ - lpZ
 
+                val absX = abs(hpX)
+                val absY = abs(hpY)
+                val absZ = abs(hpZ)
+
                 val dX = hpX - prevHpX
                 val dY = hpY - prevHpY
                 val dZ = hpZ - prevHpZ
                 val jerk = sqrt(dX * dX + dY * dY + dZ * dZ)
-                val hpMagnitude = sqrt(hpX * hpX + hpY * hpY + hpZ * hpZ)
-                val absZ = abs(hpZ)
+                val vectorMag = sqrt(hpX * hpX + hpY * hpY + hpZ * hpZ)
+
+                // Dominant Z-Axis Impulse Ratio Analysis
+                val zDominanceRatio = if (vectorMag > 0.01f) absZ / vectorMag else 0f
 
                 // Throttle sampling to ~50Hz (20ms interval)
                 if (now - lastSampleTimestamp < SAMPLING_PERIOD_MS) return
@@ -202,52 +212,79 @@ class ColumbusMlTapDetector(
                 val gyroMag = sqrt(lastGyroX * lastGyroX + lastGyroY * lastGyroY + lastGyroZ * lastGyroZ)
                 val accelMag = sqrt(lastAccelX * lastAccelX + lastAccelY * lastAccelY + lastAccelZ * lastAccelZ)
 
-                // Run Machine Learning Signal Classification
-                val (confidence, rejectionReason) = runColumbusInference(jerk, hpMagnitude, absZ, gyroMag, accelMag)
+                // Run Machine Learning Signal Classification with Impulse Direction Analysis
+                val (confidence, rejectionReason) = runColumbusInference(jerk, vectorMag, absZ, zDominanceRatio, gyroMag, accelMag)
                 val inferenceLatencyMs = ((SystemClock.elapsedRealtimeNanos() - inferenceStartNanos) / 1_000_000L).coerceAtLeast(1L)
 
+                val lastTouchTs = ScreenTouchTracker.lastScreenTouchTimestamp
+                val isScreenTouchSuppressed = (now - lastTouchTs) in 0L..SCREEN_TOUCH_LOCKOUT_MS
+
                 val motionState = when {
-                    gyroMag < 0.20f && hpMagnitude < 0.25f -> MotionClassification.STILL
+                    gyroMag < 0.20f && vectorMag < 0.25f -> MotionClassification.STILL
                     gyroMag > 1.20f || accelMag > 15.0f -> MotionClassification.SHAKING
-                    confidence >= CONFIDENCE_THRESHOLD -> MotionClassification.BACK_TAP_LIKE
+                    confidence >= CONFIDENCE_THRESHOLD && !isScreenTouchSuppressed -> MotionClassification.BACK_TAP_LIKE
                     else -> MotionClassification.MOVING
                 }
 
                 val timeSinceLastTap = if (lastTapTime > 0) now - lastTapTime else 0L
 
-                // Update In-App Debug Manager
+                // Update In-App Debug Manager with Directional Peaks & Touch Suppression Status
                 BackTapDebugManager.updateTelemetry(
                     ax = lastAccelX, ay = lastAccelY, az = lastAccelZ,
                     lx = hpX, ly = hpY, lz = hpZ,
                     gx = lastGyroX, gy = lastGyroY, gz = lastGyroZ,
-                    mag = hpMagnitude, peak = hpMagnitude, zp = absZ, jk = jerk, gm = gyroMag,
+                    mag = vectorMag, peak = vectorMag, xp = absX, yp = absY, zp = absZ,
+                    zRatio = zDominanceRatio, jk = jerk, gm = gyroMag,
                     minImp = confidence, maxImp = 1.0f, minJk = 0.48f, maxGy = 0.45f,
-                    state = if (confidence >= CONFIDENCE_THRESHOLD) "POSSIBLE_TAP" else "IDLE",
+                    state = if (confidence >= CONFIDENCE_THRESHOLD && !isScreenTouchSuppressed) "POSSIBLE_TAP" else "IDLE",
                     motion = motionState.name,
                     count = tapTimestamps.size,
                     seqText = "${tapTimestamps.size}/3",
                     timestamps = tapTimestamps.toList(),
                     timeSinceLastTap = timeSinceLastTap,
-                    latencyMs = inferenceLatencyMs
+                    latencyMs = inferenceLatencyMs,
+                    touchTs = lastTouchTs,
+                    impulseTs = now,
+                    isSuppressed = isScreenTouchSuppressed
                 )
 
-                // EVALUATE ML CONFIDENCE SCORE
+                // EVALUATE SCREEN TOUCH SUPPRESSION
+                if (isScreenTouchSuppressed) {
+                    if (jerk >= 0.48f) {
+                        val touchGap = now - lastTouchTs
+                        Log.w(TAG, "SCREEN_TAP_SUPPRESSED: Candidate occurred ${touchGap}ms after screen touch.")
+                        BackTapDebugManager.logEvent("SCREEN_TAP_SUPPRESSED (Touch ${touchGap}ms ago)")
+                    }
+                    return
+                }
+
+                // EVALUATE ML CONFIDENCE & DEBOUNCE
                 if (now - lastTapTime < DEBOUNCE_INTERVAL_MS) return
 
                 if (confidence >= CONFIDENCE_THRESHOLD) {
                     lastTapTime = now
+                    Log.i(TAG, "BACK_TAP_ACCEPTED: Dominant Z-axis impulse (zRatio=%.2f >= 0.65) | Conf: %.1f%%".format(zDominanceRatio, confidence * 100f))
+                    BackTapDebugManager.logEvent("BACK_TAP_ACCEPTED [zRatio: %.0f%% | Conf: %.0f%%]".format(zDominanceRatio * 100f, confidence * 100f))
                     processTapEvent(now, confidence, rejectionReason)
                 } else if (confidence > 0.40f) {
-                    Log.d(TAG, "REJECTED GESTURE: Confidence %.1f%% < 88.0%% | Reason: %s".format(confidence * 100f, rejectionReason))
+                    Log.d(TAG, "BACK_TAP_REJECTED: Confidence %.1f%% < 88.0%% | Reason: %s".format(confidence * 100f, rejectionReason))
+                    BackTapDebugManager.logEvent("BACK_TAP_REJECTED [%s]".format(rejectionReason))
                 }
             }
         }
     }
 
     /**
-     * High-Precision Sweet-Spot Columbus ML Feature Classifier.
+     * High-Precision Sweet-Spot Columbus ML Feature Classifier with Z-Axis Dominance Enforcement.
      */
-    private fun runColumbusInference(currentJerk: Float, currentHpMag: Float, currentAbsZ: Float, currentGyroMag: Float, currentAccelMag: Float): Pair<Float, String> {
+    private fun runColumbusInference(
+        currentJerk: Float,
+        currentVectorMag: Float,
+        currentAbsZ: Float,
+        zDominanceRatio: Float,
+        currentGyroMag: Float,
+        currentAccelMag: Float
+    ): Pair<Float, String> {
         val interpreter = tfliteInterpreter
         if (interpreter != null) {
             try {
@@ -265,7 +302,7 @@ class ColumbusMlTapDetector(
                 interpreter.run(inputBuffer, outputArray)
 
                 val tapProbability = outputArray[0][1]
-                val reason = if (tapProbability < CONFIDENCE_THRESHOLD) "ML Model Probability ${"%.1f".format(tapProbability * 100)}% < 78%" else "Passed ML Model"
+                val reason = if (tapProbability < CONFIDENCE_THRESHOLD) "ML Model Probability ${"%.1f".format(tapProbability * 100)}% < 88%" else "Passed ML Model"
                 return Pair(tapProbability, reason)
             } catch (t: Throwable) {
                 Log.e(TAG, "Error executing TFLite inference", t)
@@ -282,12 +319,18 @@ class ColumbusMlTapDetector(
             return Pair(0.05f, "Smooth Hand Motion (Jerk %.2f < 0.48)".format(currentJerk))
         }
 
+        // Rule C: Dominant Z-Axis Impulse Enforcement (Screen taps have X/Y shear, Back taps are Z-dominant)
+        if (zDominanceRatio < MIN_Z_DOMINANCE_RATIO) {
+            return Pair(0.12f, "Screen Tap X/Y Shear (zRatio %.2f < 0.65)".format(zDominanceRatio))
+        }
+
         // Compute Sweet-Spot ML Confidence Score for Physical Finger Back Taps
         val jerkRatio = (currentJerk / 1.10f).coerceAtMost(1.0f)
-        val magRatio = (currentHpMag / 0.70f).coerceAtMost(1.0f)
+        val magRatio = (currentVectorMag / 0.70f).coerceAtMost(1.0f)
+        val zRatioScore = (zDominanceRatio / 1.00f).coerceAtMost(1.0f)
         val stabilityRatio = (1.0f - (currentGyroMag / 0.45f)).coerceAtLeast(0f)
 
-        val confidence = (jerkRatio * 0.55f + magRatio * 0.30f + stabilityRatio * 0.15f).coerceAtMost(0.98f)
+        val confidence = (jerkRatio * 0.40f + zRatioScore * 0.30f + magRatio * 0.20f + stabilityRatio * 0.10f).coerceAtMost(0.98f)
         val reason = if (confidence >= CONFIDENCE_THRESHOLD) "Physical Back Tap Verified" else "Confidence %.1f%% below 88.0%%".format(confidence * 100f)
         return Pair(confidence, reason)
     }
