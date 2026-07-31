@@ -96,10 +96,19 @@ object CommandParser {
     private val TAP_PREFIXES = listOf("tap", "tab", "top", "tub", "tip", "app", "cap", "tape", "click", "press", "select", "touch")
 
     private val SPOKEN_NUMBER_MAP = mapOf(
-        "zero" to 0, "one" to 1, "two" to 2, "to" to 2, "too" to 2,
-        "three" to 3, "four" to 4, "for" to 4, "fore" to 4,
-        "five" to 5, "six" to 6, "seven" to 7, "eight" to 8, "ate" to 8,
-        "nine" to 9, "ten" to 10, "eleven" to 11, "twelve" to 12,
+        "zero" to 0, "0" to 0,
+        "one" to 1, "wun" to 1, "wan" to 1, "1" to 1,
+        "two" to 2, "to" to 2, "too" to 2, "tu" to 2, "2" to 2,
+        "three" to 3, "tree" to 3, "free" to 3, "tri" to 3, "3" to 3,
+        "four" to 4, "for" to 4, "fore" to 4, "far" to 4, "4" to 4,
+        "five" to 5, "faiv" to 5, "fiv" to 5, "5" to 5,
+        "six" to 6, "siks" to 6, "sik" to 6, "6" to 6,
+        "seven" to 7, "sevan" to 7, "sevin" to 7, "saven" to 7, "7" to 7,
+        "eight" to 8, "ate" to 8, "ait" to 8, "eyt" to 8, "8" to 8,
+        "nine" to 9, "nain" to 9, "nien" to 9, "nin" to 9, "9" to 9,
+        "ten" to 10, "tin" to 10, "tan" to 10, "10" to 10,
+        "eleven" to 11, "aleven" to 11, "11" to 11,
+        "twelve" to 12, "twelv" to 12, "12" to 12,
         "thirteen" to 13, "fourteen" to 14, "fifteen" to 15,
         "sixteen" to 16, "seventeen" to 17, "eighteen" to 18,
         "nineteen" to 19, "twenty" to 20,
@@ -249,32 +258,34 @@ object CommandParser {
         }
 
         val isGridPhrase = lowerText.contains("grid") || lowerText.contains("so grid") ||
-                lowerText.contains("saw grid") || lowerText.contains("shoe grid")
+                lowerText.contains("saw grid") || lowerText.contains("shoe grid") ||
+                lowerText.contains("sho grid") || lowerText.contains("sow grid") ||
+                lowerText.contains("show great") || lowerText.contains("show grit")
         if (!isGridPhrase) return null
 
         var extractedRows: Int? = null
         var extractedCols: Int? = null
 
-        // Check for "X rows" or "row X"
-        val rowRegex = Regex("""(\d+|[a-z]+)\s+(?:rows?|row)""")
+        // Check for "X rows" or "row X" (including phonetic variations: rose, raws, raw, roes, ros)
+        val rowRegex = Regex("""(\d+|[a-z]+)\s+(?:rows?|row|rose|raws?|raw|roes|ros)""")
         val rowMatch = rowRegex.find(lowerText)
         if (rowMatch != null) {
             extractedRows = parseSpokenNumber(rowMatch.groupValues[1])
         } else {
-            val rowRegexAlt = Regex("""(?:rows?|row)\s+(\d+|[a-z]+)""")
+            val rowRegexAlt = Regex("""(?:rows?|row|rose|raws?|raw|roes|ros)\s+(\d+|[a-z]+)""")
             val rowMatchAlt = rowRegexAlt.find(lowerText)
             if (rowMatchAlt != null) {
                 extractedRows = parseSpokenNumber(rowMatchAlt.groupValues[1])
             }
         }
 
-        // Check for "X columns" or "column X" or "cols"
-        val colRegex = Regex("""(\d+|[a-z]+)\s+(?:columns?|column|cols?|col)""")
+        // Check for "X columns" or "column X" (including phonetic variations: cols, col, calumns, collumns, colums, kals, callum, calum, kols)
+        val colRegex = Regex("""(\d+|[a-z]+)\s+(?:columns?|column|cols?|col|calumns?|collumns?|colums?|kals|callum|calum|kols)""")
         val colMatch = colRegex.find(lowerText)
         if (colMatch != null) {
             extractedCols = parseSpokenNumber(colMatch.groupValues[1])
         } else {
-            val colRegexAlt = Regex("""(?:columns?|column|cols?|col)\s+(\d+|[a-z]+)""")
+            val colRegexAlt = Regex("""(?:columns?|column|cols?|col|calumns?|collumns?|colums?|kals|callum|calum|kols)\s+(\d+|[a-z]+)""")
             val colMatchAlt = colRegexAlt.find(lowerText)
             if (colMatchAlt != null) {
                 extractedCols = parseSpokenNumber(colMatchAlt.groupValues[1])
