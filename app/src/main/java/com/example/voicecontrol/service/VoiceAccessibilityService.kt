@@ -106,7 +106,8 @@ class VoiceAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Recursively traverses node tree to find the active scrollable container.
+     * Recursively traverses node tree to find the active vertical scrollable container.
+     * Explicitly filters out horizontal containers (HorizontalScrollView, ViewPager).
      */
     private fun findScrollableNode(node: AccessibilityNodeInfo?, isForward: Boolean): AccessibilityNodeInfo? {
         if (node == null) return null
@@ -118,7 +119,13 @@ class VoiceAccessibilityService : AccessibilityService() {
                 AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD
             }
 
-            if (node.isScrollable && node.actionList.contains(targetAction)) {
+            val className = node.className?.toString() ?: ""
+            val isHorizontal = className.contains("HorizontalScrollView", ignoreCase = true) ||
+                    className.contains("ViewPager", ignoreCase = true) ||
+                    className.contains("Horizontal", ignoreCase = true)
+
+            // Only match vertical scrollable views (exclude horizontal carousels/tabs)
+            if (node.isScrollable && !isHorizontal && node.actionList.contains(targetAction)) {
                 return node
             }
 
