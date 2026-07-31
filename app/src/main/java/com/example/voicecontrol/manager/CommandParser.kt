@@ -264,7 +264,6 @@ object CommandParser {
                 lowerText.contains("so grid") || lowerText.contains("saw grid") ||
                 lowerText.contains("shoe grid") || lowerText.contains("sho grid") ||
                 lowerText.contains("sow grid")
-        if (!isGridPhrase) return null
 
         var extractedRows: Int? = null
         var extractedCols: Int? = null
@@ -295,7 +294,7 @@ object CommandParser {
             }
         }
 
-        // Check for "X by Y" (e.g. "grid 7 by 9", "7 bi 9", "7 times 9")
+        // Check for "X by Y" (e.g. "7 by 9", "7 bi 9", "7 times 9")
         if (extractedRows == null && extractedCols == null) {
             val byRegex = Regex("""(\d+|[a-z]+)\s+(?:by|bi|buy|bye|times|x|into)\s+(\d+|[a-z]+)""")
             val byMatch = byRegex.find(lowerText)
@@ -305,7 +304,12 @@ object CommandParser {
             }
         }
 
-        return VoiceCommand.ShowGrid(customRows = extractedRows, customCols = extractedCols)
+        // Return immediately if rows or columns were directly specified, or if grid phrase was present
+        if (extractedRows != null || extractedCols != null || isGridPhrase) {
+            return VoiceCommand.ShowGrid(customRows = extractedRows, customCols = extractedCols)
+        }
+
+        return null
     }
 
     /**
