@@ -29,10 +29,10 @@ class BackTapDetector(
         private const val ALPHA_LOW_PASS = 0.82f
         private const val ALPHA_HIGH_PASS = 0.78f
 
-        // Detection Thresholds tuned based on real Vivo V40 Logcat empirical data (peaks 3.5 - 6.5 m/s²)
-        private const val IMPULSE_JERK_THRESHOLD = 9.5f // m/s³ linear acceleration derivative spike
-        private const val HIGH_PASS_Z_THRESHOLD = 3.6f   // m/s² Z-axis sharp impact peak
-        private const val MAX_GYRO_ROTATION_THRESHOLD = 3.5f // rad/s rotation ceiling (blocks walking/shaking)
+        // Subtle Tap Bandpass Filter tuned specifically for small, light finger back taps (0.40 m/s² to 2.80 m/s²)
+        private const val MIN_TAP_IMPULSE = 0.40f // Minimum peak for a subtle finger tap
+        private const val MAX_TAP_IMPULSE = 2.80f // Maximum peak ceiling (rejects heavy motion/shakes > 2.80 m/s²)
+        private const val MAX_GYRO_ROTATION_THRESHOLD = 2.8f // rad/s rotation ceiling (blocks walking/shaking)
 
         // Timing Rules
         private const val DEBOUNCE_INTERVAL_MS = 90L // Ignore repeated sensor spikes for 90ms
@@ -193,10 +193,12 @@ class BackTapDetector(
                 // Rule C: Debounce Check (must be >= 120ms after previous tap peak)
                 if (now - lastTapTime < DEBOUNCE_INTERVAL_MS) return
 
-                // Rule D: Transient Impulse Peak Detection
-                val isImpactSpike = jerk >= IMPULSE_JERK_THRESHOLD || abs(hpZ) >= HIGH_PASS_Z_THRESHOLD
+                // Rule D: Subtle Tap Impulse Window Check (Only accepts small gentle taps in range 0.40 m/s² .. 2.80 m/s²)
+                val absZ = abs(hpZ)
+                val isSubtleTapImpulse = (absZ in MIN_TAP_IMPULSE..MAX_TAP_IMPULSE) ||
+                        (hpMagnitude in MIN_TAP_IMPULSE..MAX_TAP_IMPULSE)
 
-                if (isImpactSpike) {
+                if (isSubtleTapImpulse) {
                     lastTapTime = now
                     processTapEvent(now, hpMagnitude)
                 }
