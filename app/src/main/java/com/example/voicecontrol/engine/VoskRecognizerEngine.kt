@@ -13,19 +13,17 @@ import org.vosk.android.RecognitionListener
 import org.vosk.android.SpeechService
 import org.vosk.android.StorageService
 import java.io.File
+import java.io.FileOutputStream
 
 /**
- * Enhanced Vosk Offline Speech Recognition Engine with detailed Logcat diagnostics,
- * multi-folder asset fallback probing ("model", "model-en-us"), and runtime status checks.
+ * Vosk Offline Speech Recognition Engine featuring automatic asset-to-storage model extraction,
+ * file verification, Logcat diagnostics, and sub-100ms offline recognition accuracy.
  */
 class VoskRecognizerEngine(private val context: Context) : RecognitionEngine {
 
     companion object {
         private const val TAG = "VoskEngine"
         private const val PERF_TAG = "PERF"
-
-        // Common asset folder names where developers place Vosk speech models
-        private val MODEL_ASSET_NAMES = listOf("model", "model-en-us", "vosk-model-small-en-us-0.15")
 
         // Constrained command grammar JSON array for sub-100ms offline recognition
         private const val COMMAND_GRAMMAR_JSON = """[
@@ -54,7 +52,7 @@ class VoskRecognizerEngine(private val context: Context) : RecognitionEngine {
     }
 
     /**
-     * Checks whether RECORD_AUDIO permission is granted.
+     * Verifies whether microphone permission (RECORD_AUDIO) is granted.
      */
     private fun verifyMicrophonePermission(): Boolean {
         val permissionState = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
@@ -68,99 +66,139 @@ class VoskRecognizerEngine(private val context: Context) : RecognitionEngine {
     }
 
     /**
-     * Inspects assets directory and unpacks Vosk speech model.
+     * Automatic Model Loading Pipeline:
+     * 1. Detect asset model at app/src/main/assets/model
+     * 2. Copy model from assets to internal storage (context.filesDir/model)
+     * 3. Verify all key model files exist (am/final.mdl, conf/model.conf)
+     * 4. Initialize Model(modelPath)
+     * 5. Print detailed Logcat logs at every step
      */
     private fun loadVoskModel() {
         if (voskModel != null || isModelLoading) return
         isModelLoading = true
         modelLoadErrorMessage = null
 
-        Log.i(TAG, "🔍 Probing assets/ directory for Vosk speech model...")
-        try {
-            val assetList = context.assets.list("") ?: emptyArray()
-            Log.i(TAG, "📂 Assets Root Contents: ${assetList.joinToString(", ", "[", "]")}")
+        Log.i(TAG, "🔍 Checking assets for Vosk model directory...")
 
-            // Find matching asset folder name
-            val detectedFolder = MODEL_ASSET_NAMES.firstOrNull { folderName ->
+        val candidateFolders = listOf("model", "model-en-us", "vosk-model-small-en-us-0.15")
+        val foundFolder = candidateFolders.firstOrNull { folderName ->
+            try {
+                val contents = context.assets.list(folderName) ?: emptyArray()
+                contents.isNotEmpty()
+            } catch (e: Exception) {
+                false
+            }
+        }
+
+        if (foundFolder != null) {
+            Log.i(TAG, "📂 Asset model found: 'assets/$foundFolder'")
+            val targetDir = File(context.filesDir, "model")
+
+            // Verify if key files are already present in storage
+            val confFile = File(targetDir, "conf/model.conf")
+            val amFile = File(targetDir, "am/final.mdl")
+
+            if (!confFile.exists() || !amFile.exists()) {
+                Log.i(TAG, "⏳ Copy started: copying 'assets/$foundFolder' -> '${targetDir.absolutePath}'...")
+                val success = copyAssetFolder(foundFolder, targetDir)
+                if (success) {
+                    Log.i(TAG, "✅ Copy completed: all model files copied to storage.")
+                } else {
+                    Log.w(TAG, "⚠️ Direct asset copy encountered issues. Fallback to StorageService.unpack...")
+                }
+            } else {
+                Log.i(TAG, "✅ Model files already exist in internal storage.")
+            }
+
+            Log.i(TAG, "📍 Final model path: '${targetDir.absolutePath}'")
+
+            // Verify model files before initializing
+            val amCheck = File(targetDir, "am/final.mdl")
+            if (amCheck.exists()) {
                 try {
-                    val subAssets = context.assets.list(folderName) ?: emptyArray()
-                    subAssets.isNotEmpty()
+                    Log.i(TAG, "⚙️ Initializing Vosk Model(modelPath)...")
+                    voskModel = Model(targetDir.absolutePath)
+                    isModelLoading = false
+                    modelLoadErrorMessage = null
+                    Log.i(TAG, "==========================================================")
+                    Log.i(TAG, "✅ Model(modelPath) initialized successfully!")
+                    Log.i(TAG, "==========================================================")
+                    return
                 } catch (e: Exception) {
-                    false
+                    isModelLoading = false
+                    modelLoadErrorMessage = "Model initialization failed: ${e.message}"
+                    Log.e(TAG, "❌ Failed to initialize Model('${targetDir.absolutePath}')", e)
                 }
             }
-
-            if (detectedFolder != null) {
-                Log.i(TAG, "📦 Found Vosk model folder in assets: 'assets/$detectedFolder'")
-                unpackModelFromAssets(detectedFolder)
-            } else {
-                Log.w(TAG, "⚠️ No Vosk model folder ('model' or 'model-en-us') found in assets/!")
-                Log.w(TAG, "🔍 Checking local app storage fallback path: ${context.filesDir.absolutePath}")
-                tryLoadLocalModelFallback()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Exception during assets directory inspection", e)
-            tryLoadLocalModelFallback()
         }
+
+        // Fallback SDK Unpacker if custom copy fallback is needed
+        unpackModelViaSdk(foundFolder ?: "model")
     }
 
     /**
-     * Unpacks assets model to app internal filesDir using Vosk StorageService.
+     * Fallback unpacker using Vosk StorageService.
      */
-    private fun unpackModelFromAssets(assetFolderName: String) {
-        Log.i(TAG, "⏳ Unpacking 'assets/$assetFolderName' to '${context.filesDir.absolutePath}/$assetFolderName'...")
-
+    private fun unpackModelViaSdk(folderName: String) {
+        Log.i(TAG, "⏳ Invoking StorageService.unpack for '$folderName'...")
         StorageService.unpack(
             context,
-            assetFolderName,
-            assetFolderName,
+            folderName,
+            "model",
             { model ->
                 voskModel = model
                 isModelLoading = false
                 modelLoadErrorMessage = null
                 Log.i(TAG, "==========================================================")
-                Log.i(TAG, "✅ Vosk Model Successfully Initialized & Ready!")
+                Log.i(TAG, "✅ Model(modelPath) initialized successfully via StorageService!")
                 Log.i(TAG, "==========================================================")
             },
             { exception ->
                 isModelLoading = false
-                modelLoadErrorMessage = exception.message ?: "Failed to unpack model from assets"
-                Log.e(TAG, "❌ StorageService.unpack() failed for 'assets/$assetFolderName': ${exception.message}", exception)
-                tryLoadLocalModelFallback()
+                val errorMsg = "VOSK ENGINE SETUP ERROR: No Vosk speech model found at 'app/src/main/assets/model/'"
+                modelLoadErrorMessage = errorMsg
+                Log.e(TAG, "==========================================================")
+                Log.e(TAG, "❌ $errorMsg", exception)
+                Log.e(TAG, "==========================================================")
             }
         )
     }
 
     /**
-     * Tries to load model directly from local internal storage directory if already unpacked.
+     * Recursively copies an asset folder to target file directory.
      */
-    private fun tryLoadLocalModelFallback() {
-        for (folderName in MODEL_ASSET_NAMES) {
-            val localModelDir = File(context.filesDir, folderName)
-            Log.i(TAG, "🔎 Testing local path: '${localModelDir.absolutePath}' (Exists: ${localModelDir.exists()}, IsDir: ${localModelDir.isDirectory})")
+    private fun copyAssetFolder(srcAssetPath: String, targetDir: File): Boolean {
+        return try {
+            val assetManager = context.assets
+            val subAssets = assetManager.list(srcAssetPath) ?: return false
 
-            if (localModelDir.exists() && localModelDir.isDirectory) {
-                try {
-                    Log.i(TAG, "⚙️ Attempting Model('${localModelDir.absolutePath}')...")
-                    voskModel = Model(localModelDir.absolutePath)
-                    isModelLoading = false
-                    modelLoadErrorMessage = null
-                    Log.i(TAG, "==========================================================")
-                    Log.i(TAG, "✅ Vosk Model loaded successfully from local storage!")
-                    Log.i(TAG, "==========================================================")
-                    return
-                } catch (e: Exception) {
-                    Log.e(TAG, "❌ Failed to instantiate Model from '${localModelDir.absolutePath}'", e)
+            if (!targetDir.exists()) {
+                targetDir.mkdirs()
+            }
+
+            for (file in subAssets) {
+                val childSrc = "$srcAssetPath/$file"
+                val childTarget = File(targetDir, file)
+                val children = assetManager.list(childSrc)
+
+                if (!children.isNullOrEmpty()) {
+                    copyAssetFolder(childSrc, childTarget)
+                } else {
+                    assetManager.open(childSrc).use { input ->
+                        if (!childTarget.parentFile.exists()) {
+                            childTarget.parentFile.mkdirs()
+                        }
+                        FileOutputStream(childTarget).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
                 }
             }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error copying asset folder '$srcAssetPath'", e)
+            false
         }
-
-        isModelLoading = false
-        val missingMsg = "No Vosk speech model found! Please place your model files inside 'app/src/main/assets/model/'"
-        modelLoadErrorMessage = missingMsg
-        Log.e(TAG, "==========================================================")
-        Log.e(TAG, "❌ VOSK ENGINE SETUP ERROR: $missingMsg")
-        Log.e(TAG, "==========================================================")
     }
 
     override fun isAvailable(): Boolean {
@@ -177,7 +215,7 @@ class VoskRecognizerEngine(private val context: Context) : RecognitionEngine {
             if (isModelLoading) {
                 listener.onError("Vosk offline model is loading... Please wait a moment.")
             } else {
-                val errMsg = modelLoadErrorMessage ?: "Vosk model not found. Place model in 'app/src/main/assets/model/'"
+                val errMsg = modelLoadErrorMessage ?: "No Vosk speech model found. Place model at 'app/src/main/assets/model/'"
                 listener.onError(errMsg)
             }
             loadVoskModel()
