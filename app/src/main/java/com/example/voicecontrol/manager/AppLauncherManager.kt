@@ -2,9 +2,9 @@ package com.example.voicecontrol.manager
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.util.Log
+import com.example.voicecontrol.util.FuzzyAppMatcher
 
 /**
  * Result of an app launch attempt.
@@ -16,8 +16,8 @@ sealed interface AppLaunchResult {
 }
 
 /**
- * AppLauncherManager detects installed applications via PackageManager
- * and launches target apps matching spoken names.
+ * AppLauncherManager detects installed applications via PackageManager,
+ * applies exact, partial, alias, and Levenshtein fuzzy matching, and launches target apps.
  */
 class AppLauncherManager(private val context: Context) {
 
@@ -26,7 +26,7 @@ class AppLauncherManager(private val context: Context) {
     }
 
     /**
-     * Searches for an installed app matching [appName] and launches it.
+     * Searches for an installed app matching [appName] (with fuzzy tolerance) and launches it.
      */
     fun launchApp(appName: String): AppLaunchResult {
         val packageManager = context.packageManager
@@ -74,11 +74,20 @@ class AppLauncherManager(private val context: Context) {
                 }
             }
 
-            // 4. Special alias dictionary matching (e.g., "Phone" -> "Dialer", "Photos" -> "Gallery")
+            // 4. Special alias dictionary matching
             if (matched == null) {
                 val aliasMatches = getAliasesFor(targetLower)
                 matched = installedApps.firstOrNull { candidate ->
                     aliasMatches.any { alias -> candidate.label.lowercase().contains(alias) }
+                }
+            }
+
+            // 5. Levenshtein Fuzzy Matcher (e.g. "whatsap" -> "WhatsApp", "instgram" -> "Instagram")
+            if (matched == null) {
+                val candidateLabels = installedApps.map { it.label }
+                val bestFuzzyLabel = FuzzyAppMatcher.findBestMatch(appName, candidateLabels)
+                if (bestFuzzyLabel != null) {
+                    matched = installedApps.firstOrNull { it.label == bestFuzzyLabel }
                 }
             }
 

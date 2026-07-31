@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.example.voicecontrol.manager.DynamicGrammarGenerator
 import com.example.voicecontrol.manager.SpeechRecognitionListener
 import org.json.JSONObject
 import org.vosk.Model
@@ -16,26 +17,15 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
- * Vosk Offline Speech Recognition Engine featuring automatic asset-to-storage model extraction,
- * file verification, Logcat diagnostics, and sub-100ms offline recognition accuracy.
+ * Vosk Offline Speech Recognition Engine featuring dynamic app grammar generation,
+ * automatic asset-to-storage model extraction, file verification, Logcat diagnostics,
+ * and sub-100ms offline recognition accuracy.
  */
 class VoskRecognizerEngine(private val context: Context) : RecognitionEngine {
 
     companion object {
         private const val TAG = "VoskEngine"
         private const val PERF_TAG = "PERF"
-
-        // Constrained command grammar JSON array for sub-100ms offline recognition
-        private const val COMMAND_GRAMMAR_JSON = """[
-            "open whatsapp", "open chrome", "open instagram", "open youtube", "open settings", "open camera",
-            "go home", "home", "back", "recent apps", "recents",
-            "swipe up", "swipe down", "swipe left", "swipe right",
-            "tap search", "tap settings", "tap profile", "tap install", "tap send",
-            "show numbers", "hide numbers",
-            "show grid", "hide grid", "reset grid", "click here",
-            "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
-            "[unk]"
-        ]"""
     }
 
     private var voskModel: Model? = null
@@ -228,7 +218,10 @@ class VoskRecognizerEngine(private val context: Context) : RecognitionEngine {
             val tStart = System.currentTimeMillis()
             Log.i(PERF_TAG, "[PERF] [VOSK] Starting Vosk continuous audio stream listener: $tStart ms")
 
-            val recognizer = Recognizer(voskModel, 16000.0f, COMMAND_GRAMMAR_JSON)
+            // Dynamically generate grammar JSON from all installed apps + system commands
+            val dynamicGrammarJson = DynamicGrammarGenerator.generateGrammarJson(context)
+
+            val recognizer = Recognizer(voskModel, 16000.0f, dynamicGrammarJson)
             val speechService = SpeechService(recognizer, 16000.0f)
 
             speechService.startListening(object : RecognitionListener {
@@ -270,7 +263,7 @@ class VoskRecognizerEngine(private val context: Context) : RecognitionEngine {
             voskSpeechService = speechService
             isListening = true
             listener.onReadyForSpeech()
-            Log.i(TAG, "🎙️ Vosk SpeechService active and listening.")
+            Log.i(TAG, "🎙️ Vosk SpeechService active with dynamic app grammar.")
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ Exception starting Vosk SpeechService", e)
