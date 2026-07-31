@@ -29,6 +29,8 @@ data class BackTapTelemetry(
     val stateName: String = "IDLE",       // IDLE, POSSIBLE_TAP, VALID_TAP, TRIPLE_TAP
     val motionName: String = "STILL",     // STILL, MOVING, SHAKING, BACK_TAP_LIKE
     val tapCount: Int = 0,
+    val sequenceText: String = "0/3",     // 1/3, 2/3, 3/3
+    val tapTimestampsList: List<Long> = emptyList(), // [t1, t2, t3]
     val timeSinceLastTapMs: Long = 0L,
     val sensorEventsPerSec: Int = 50,     // Sensor Events/sec (Hz)
     val detectionLatencyMs: Long = 1      // Detection Latency (ms)
@@ -36,7 +38,7 @@ data class BackTapTelemetry(
 
 /**
  * Singleton repository managing real-time Back Tap telemetry, live event feeds (last 200 items),
- * floating overlay toggling, performance metrics, and dashboard state.
+ * floating overlay toggling, performance metrics, sequence state, and dashboard UI bindings.
  */
 object BackTapDebugManager {
 
@@ -66,7 +68,9 @@ object BackTapDebugManager {
         gx: Float, gy: Float, gz: Float,
         mag: Float, peak: Float, zp: Float, jk: Float, gm: Float,
         minImp: Float, maxImp: Float, minJk: Float, maxGy: Float,
-        state: String, motion: String, count: Int, timeSinceLastTap: Long, latencyMs: Long
+        state: String, motion: String, count: Int,
+        seqText: String, timestamps: List<Long>,
+        timeSinceLastTap: Long, latencyMs: Long
     ) {
         val now = SystemClock.uptimeMillis()
         eventCountWindow++
@@ -87,6 +91,7 @@ object BackTapDebugManager {
             magnitude = mag, peak = peak, zPeak = zp, jerk = jk, gyroMag = gm,
             minImpulse = minImp, maxImpulse = maxImp, minJerk = minJk, maxGyro = maxGy,
             stateName = state, motionName = motion, tapCount = count,
+            sequenceText = seqText, tapTimestampsList = timestamps,
             timeSinceLastTapMs = timeSinceLastTap,
             sensorEventsPerSec = currentHz,
             detectionLatencyMs = latencyMs
