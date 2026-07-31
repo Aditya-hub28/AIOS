@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.voicecontrol.app-mergeDebugResources-48:/values-iw/values-iw.xml",
+            "outputFile": "com.example.voicecontrol.app-mergeDebugResources-47:/values-iw/values-iw.xml",
             "map": [
                 {
                     "source": "C:\\Users\\LENOVO\\.gradle\\caches\\9.3.0\\transforms\\8afe873a65fa94cf22ce16685125914f\\workspace\\transformed\\core-1.15.0\\res\\values-iw\\values-iw.xml",

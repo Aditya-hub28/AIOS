@@ -1,26 +1,26 @@
 [
     {
-        "merged": "com.example.voicecontrol.app-debug-50:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "com.example.voicecontrol.app-main-52:/mipmap-anydpi-v26/ic_launcher_round.xml"
+        "merged": "com.example.voicecontrol.app-debug-49:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.example.voicecontrol.app-main-51:/mipmap-anydpi-v26/ic_launcher.xml"
     },
     {
-        "merged": "com.example.voicecontrol.app-debug-50:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "com.example.voicecontrol.app-main-52:/drawable/ic_launcher_foreground.xml"
+        "merged": "com.example.voicecontrol.app-debug-49:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.example.voicecontrol.app-main-51:/mipmap-anydpi-v26/ic_launcher_round.xml"
     },
     {
-        "merged": "com.example.voicecontrol.app-debug-50:/drawable_ic_launcher_background.xml.flat",
-        "source": "com.example.voicecontrol.app-main-52:/drawable/ic_launcher_background.xml"
+        "merged": "com.example.voicecontrol.app-debug-49:/xml_accessibility_service_config.xml.flat",
+        "source": "com.example.voicecontrol.app-main-51:/xml/accessibility_service_config.xml"
     },
     {
-        "merged": "com.example.voicecontrol.app-debug-50:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "com.example.voicecontrol.app-main-52:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "com.example.voicecontrol.app-debug-49:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.example.voicecontrol.app-main-51:/drawable/ic_launcher_foreground.xml"
     },
     {
-        "merged": "com.example.voicecontrol.app-debug-50:/xml_accessibility_service_config.xml.flat",
-        "source": "com.example.voicecontrol.app-main-52:/xml/accessibility_service_config.xml"
+        "merged": "com.example.voicecontrol.app-debug-49:/xml_data_extraction_rules.xml.flat",
+        "source": "com.example.voicecontrol.app-main-51:/xml/data_extraction_rules.xml"
     },
     {
-        "merged": "com.example.voicecontrol.app-debug-50:/xml_data_extraction_rules.xml.flat",
-        "source": "com.example.voicecontrol.app-main-52:/xml/data_extraction_rules.xml"
+        "merged": "com.example.voicecontrol.app-debug-49:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.example.voicecontrol.app-main-51:/drawable/ic_launcher_background.xml"
     }
 ]

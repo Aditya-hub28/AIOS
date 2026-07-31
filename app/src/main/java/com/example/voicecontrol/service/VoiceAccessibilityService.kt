@@ -3,6 +3,7 @@ package com.example.voicecontrol.service
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
+import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
@@ -17,7 +18,8 @@ import com.example.voicecontrol.util.NodeSearchHelper
 
 /**
  * Dedicated Accessibility Service for executing Android global actions (Home, Back, Recent Apps),
- * text-based UI clicking ("Tap <element name>"), iPhone-style number overlays ("Show Numbers", "Tap 5"),
+ * text-based UI clicking ("Tap <element name>"), text typing ("Type hello world"),
+ * iPhone-style number overlays ("Show Numbers", "Tap 5"),
  * 3x3 Grid Overlay progressive zoom navigation ("Show Grid", "Click Here"),
  * and controlled gesture navigation across all apps.
  * Hardened against crashes to maintain continuous system stability.
@@ -147,6 +149,32 @@ class VoiceAccessibilityService : AccessibilityService() {
             NodeSearchHelper.searchAndClick(this, targetText)
         } catch (e: Exception) {
             Log.e(TAG, "Error performing click by text '$targetText'", e)
+            false
+        }
+    }
+
+    /**
+     * Types arbitrary text into the currently active focused input field ("type hello world").
+     */
+    fun performTypeText(textToType: String): Boolean {
+        return try {
+            val rootNode = rootInActiveWindow ?: return false
+            val focusedNode = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            if (focusedNode != null && focusedNode.isEditable) {
+                val args = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, textToType)
+                }
+                val success = focusedNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                try { focusedNode.recycle() } catch (_: Exception) {}
+                try { rootNode.recycle() } catch (_: Exception) {}
+                Log.i(TAG, "Executed ACTION_SET_TEXT ('$textToType'): $success")
+                return success
+            }
+            try { rootNode.recycle() } catch (_: Exception) {}
+            Log.w(TAG, "No focused editable text node found to type '$textToType'.")
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error performing text typing for '$textToType'", e)
             false
         }
     }
