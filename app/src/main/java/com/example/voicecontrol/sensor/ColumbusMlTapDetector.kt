@@ -45,8 +45,8 @@ class ColumbusMlTapDetector(
         // Timing & Sequence Rules
         private const val SAMPLING_PERIOD_MS = 20L      // 50Hz sampling
         private const val DEBOUNCE_INTERVAL_MS = 90L    // 90ms debounce between distinct taps
-        private const val MAX_INTER_TAP_GAP_MS = 400L   // Max gap between consecutive taps: 400ms
-        private const val TRIPLE_TAP_WINDOW_MS = 1100L  // Total 3-tap duration window: 1100ms
+        private const val MAX_INTER_TAP_GAP_MS = 500L   // Max gap between consecutive taps: 500ms
+        private const val TRIPLE_TAP_WINDOW_MS = 1300L  // Total 3-tap duration window: 1300ms
         private const val LOCKOUT_PERIOD_MS = 1200L     // Post-match cool-down
     }
 
@@ -341,7 +341,7 @@ class ColumbusMlTapDetector(
 
         if (tapTimestamps.isNotEmpty() && gap > MAX_INTER_TAP_GAP_MS) {
             Log.w(TAG, "SEQUENCE_RESET: Gap ${gap}ms exceeded ${MAX_INTER_TAP_GAP_MS}ms limit.")
-            BackTapDebugManager.logEvent("SEQUENCE_RESET (Gap ${gap}ms > 400ms)")
+            BackTapDebugManager.logEvent("SEQUENCE_RESET (Gap ${gap}ms > 500ms)")
             tapTimestamps.clear()
             sequenceStartTime = 0L
         }
@@ -381,8 +381,8 @@ class ColumbusMlTapDetector(
                     sequenceStartTime = 0L
                     onTripleTap()
                 } else {
-                    Log.w(TAG, "SEQUENCE_RESET: Total duration ${totalDuration}ms > 1100ms window.")
-                    BackTapDebugManager.logEvent("SEQUENCE_RESET (Duration ${totalDuration}ms > 1100ms)")
+                    Log.w(TAG, "SEQUENCE_RESET: Total duration ${totalDuration}ms > 1300ms window.")
+                    BackTapDebugManager.logEvent("SEQUENCE_RESET (Duration ${totalDuration}ms > 1300ms)")
                     tapTimestamps.clear()
                     sequenceStartTime = 0L
                 }
