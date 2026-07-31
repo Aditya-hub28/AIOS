@@ -1,5 +1,6 @@
 package com.example.voicecontrol.ui
 
+import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
 import android.util.Log
@@ -257,7 +258,7 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
                     Manifest.permission.RECORD_AUDIO
                 ) == PackageManager.PERMISSION_GRANTED
 
-                Log.w(TAG, "SpeechRecognizer transient error: $errorMessage")
+                Log.w("VoiceViewModel", "SpeechRecognizer transient error: $errorMessage")
                 if (!hasPermission) {
                     _uiState.value = VoiceUiState.Error(message = errorMessage, isPermissionError = true)
                 }
