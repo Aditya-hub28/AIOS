@@ -11,70 +11,109 @@ import kotlin.math.abs
 import kotlin.math.sqrt
 
 /**
- * SensorEventListener detecting sharp triple back-tap impulses on the phone.
- * Combines Accelerometer & Gyroscope sensor fusion with false-positive motion filtering
- * (rejects walking motion, phone shaking, pocket movements, and random vibrations).
- * Tuned for highly responsive real-device back tap detection across Android 12, 13, 14, 15, and 16+.
+ * Advanced BackTapDetector using Sensor Fusion (Linear Acceleration + Accelerometer + Gyroscope),
+ * Low-Pass & High-Pass Impulse Filtering, Jerk Derivative calculation, and Multi-Layer False-Positive Suppression.
+ * Optimized specifically for Vivo V40, Vivo V2348, and modern Android 12-16+ hardware.
  */
 class BackTapDetector(
     private val context: Context,
+    private val onSingleTap: (() -> Unit)? = null,
+    private val onDoubleTap: (() -> Unit)? = null,
     private val onTripleTap: () -> Unit
 ) : SensorEventListener {
 
     companion object {
-        private const val TAG = "BackTapDetector"
+        private const val TAG = "BACK_TAP"
 
-        // Sensor threshold tuning parameters (tuned for realistic finger taps on phone back/case)
-        private const val TAP_ACCEL_THRESHOLD = 6.5f // m/s² acceleration impulse spike
-        private const val TAP_Z_ACCEL_THRESHOLD = 5.5f // m/s² Z-axis sharp inward impact spike
-        private const val MAX_GYRO_ROTATION_THRESHOLD = 4.5f // rad/s max allowed angular velocity
-        private const val MIN_TAP_INTERVAL_MS = 100L // Min ms between taps (prevents vibration echo)
-        private const val TRIPLE_TAP_WINDOW_MS = 1200L // 3 taps within 1200ms window
-        private const val LOCKOUT_PERIOD_MS = 1200L // Lockout cool-down after detection
+        // Filtering Coefficients
+        private const val ALPHA_LOW_PASS = 0.82f
+        private const val ALPHA_HIGH_PASS = 0.78f
+
+        // Detection Thresholds tuned for Vivo V40 and modern glass/metal/case backs
+        private const val IMPULSE_JERK_THRESHOLD = 14.0f // m/s³ linear acceleration derivative spike
+        private const val HIGH_PASS_Z_THRESHOLD = 4.2f   // m/s² Z-axis sharp impact peak
+        private const val MAX_GYRO_ROTATION_THRESHOLD = 3.2f // rad/s rotation ceiling (blocks walking/shaking)
+
+        // Timing Rules
+        private const val DEBOUNCE_INTERVAL_MS = 120L // Ignore repeated sensor spikes for 120ms after valid tap
+        private const val TRIPLE_TAP_WINDOW_MS = 1000L // 3 taps must complete within 1000ms
+        private const val LOCKOUT_PERIOD_MS = 1200L // Cool-down period after successful detection
+        private const val MAX_VIBRATION_SPIKES_IN_WINDOW = 4 // Vehicle vibration suppression threshold
     }
 
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
-    private val accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-    private val gyroscope = sensorManager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+    private val linearAccelSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
+    private val accelSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    private val gyroSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
 
     private var isListening = false
 
-    // Accelerometer state for delta derivative calculation
-    private var lastAx = 0f
-    private var lastAy = 0f
-    private var lastAz = 0f
-    private var hasAccelBaseline = false
+    // Low-Pass Filter State (Gravity & Slow Drift)
+    private var lpX = 0f
+    private var lpY = 0f
+    private var lpZ = 0f
 
-    // Gyroscope angular velocity magnitude
+    // High-Pass Filter State (Transient Impact Spikes)
+    private var hpX = 0f
+    private var hpY = 0f
+    private var hpZ = 0f
+    private var prevHpX = 0f
+    private var prevHpY = 0f
+    private var prevHpZ = 0f
+
+    // Gyroscope Rotational State
     private var currentGyroMag = 0f
 
-    // Sliding window of tap timestamps
+    // Vehicle Vibration Suppression Window
+    private val recentSpikeTimestamps = mutableListOf<Long>()
+
+    // Tap Event Sequence Sliding Window
     private val tapTimestamps = mutableListOf<Long>()
     private var lastTapTime = 0L
     private var lastDetectionTime = 0L
 
     /**
-     * Registers sensor listeners for Accelerometer & Gyroscope using SENSOR_DELAY_FASTEST.
+     * Starts continuous background sensor monitoring.
      */
     fun startListening() {
         if (isListening || sensorManager == null) return
 
         var registered = false
-        accelerometer?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST)
-            registered = true
-        }
-        gyroscope?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST)
+        val rate = SensorManager.SENSOR_DELAY_GAME
+
+        try {
+            // Prefer TYPE_LINEAR_ACCELERATION (gravity isolated)
+            if (linearAccelSensor != null) {
+                sensorManager.registerListener(this, linearAccelSensor, rate)
+                registered = true
+            } else if (accelSensor != null) {
+                sensorManager.registerListener(this, accelSensor, rate)
+                registered = true
+            }
+
+            gyroSensor?.let {
+                sensorManager.registerListener(this, it, rate)
+            }
+        } catch (e: SecurityException) {
+            Log.w(TAG, "HIGH_SAMPLING_RATE_SENSORS exception, falling back to SENSOR_DELAY_UI", e)
+            try {
+                val fallbackRate = SensorManager.SENSOR_DELAY_UI
+                linearAccelSensor?.let { sensorManager.registerListener(this, it, fallbackRate); registered = true }
+                    ?: accelSensor?.let { sensorManager.registerListener(this, it, fallbackRate); registered = true }
+                gyroSensor?.let { sensorManager.registerListener(this, it, fallbackRate) }
+            } catch (ex: Exception) {
+                Log.e(TAG, "Error registering sensor listener", ex)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error registering sensor listener", e)
         }
 
         if (registered) {
             isListening = true
-            hasAccelBaseline = false
-            tapTimestamps.clear()
-            Log.i(TAG, "BackTapDetector started listening with SENSOR_DELAY_FASTEST.")
+            resetFilters()
+            Log.i(TAG, "BackTapDetector started listening (LinearAccel + Accel + Gyro).")
         } else {
-            Log.w(TAG, "Unable to start BackTapDetector: Accelerometer sensor not available.")
+            Log.w(TAG, "Unable to start BackTapDetector: Sensors not available.")
         }
     }
 
@@ -85,8 +124,17 @@ class BackTapDetector(
         if (!isListening || sensorManager == null) return
         sensorManager.unregisterListener(this)
         isListening = false
-        tapTimestamps.clear()
+        resetFilters()
         Log.i(TAG, "BackTapDetector stopped listening.")
+    }
+
+    private fun resetFilters() {
+        lpX = 0f; lpY = 0f; lpZ = 0f
+        hpX = 0f; hpY = 0f; hpZ = 0f
+        prevHpX = 0f; prevHpY = 0f; prevHpZ = 0f
+        currentGyroMag = 0f
+        tapTimestamps.clear()
+        recentSpikeTimestamps.clear()
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
@@ -94,10 +142,8 @@ class BackTapDetector(
 
         val now = SystemClock.elapsedRealtime()
 
-        // Ignore events during post-detection lockout period
-        if (now - lastDetectionTime < LOCKOUT_PERIOD_MS) {
-            return
-        }
+        // Post-detection lockout check
+        if (now - lastDetectionTime < LOCKOUT_PERIOD_MS) return
 
         when (event.sensor.type) {
             Sensor.TYPE_GYROSCOPE -> {
@@ -107,62 +153,85 @@ class BackTapDetector(
                 currentGyroMag = sqrt(gx * gx + gy * gy + gz * gz)
             }
 
-            Sensor.TYPE_ACCELEROMETER -> {
-                val ax = event.values[0]
-                val ay = event.values[1]
-                val az = event.values[2]
+            Sensor.TYPE_LINEAR_ACCELERATION, Sensor.TYPE_ACCELEROMETER -> {
+                val rawX = event.values[0]
+                val rawY = event.values[1]
+                val rawZ = event.values[2]
 
-                if (!hasAccelBaseline) {
-                    lastAx = ax
-                    lastAy = ay
-                    lastAz = az
-                    hasAccelBaseline = true
-                    return
+                // 1. Low-Pass Filter (tracks baseline tilt / gravity)
+                lpX = ALPHA_LOW_PASS * lpX + (1f - ALPHA_LOW_PASS) * rawX
+                lpY = ALPHA_LOW_PASS * lpY + (1f - ALPHA_LOW_PASS) * rawY
+                lpZ = ALPHA_LOW_PASS * lpZ + (1f - ALPHA_LOW_PASS) * rawZ
+
+                // 2. High-Pass Filter (isolates transient back tap impact spikes)
+                prevHpX = hpX; prevHpY = hpY; prevHpZ = hpZ
+                hpX = rawX - lpX
+                hpY = rawY - lpY
+                hpZ = rawZ - lpZ
+
+                // 3. Jerk (Derivative of High-Pass Acceleration Vector)
+                val dX = hpX - prevHpX
+                val dY = hpY - prevHpY
+                val dZ = hpZ - prevHpZ
+                val jerk = sqrt(dX * dX + dY * dY + dZ * dZ)
+                val hpMagnitude = sqrt(hpX * hpX + hpY * hpY + hpZ * hpZ)
+
+                // FALSE POSITIVE REJECTION RULES:
+                // Rule A: Rotational Stability Guard (rejects walking, phone shaking, pocket movements)
+                if (currentGyroMag > MAX_GYRO_ROTATION_THRESHOLD) return
+
+                // Rule B: Vehicle Vibration Suppressor (rejects continuous road noise spikes)
+                if (jerk > IMPULSE_JERK_THRESHOLD * 0.7f) {
+                    recentSpikeTimestamps.removeAll { now - it > 400L }
+                    recentSpikeTimestamps.add(now)
+                    if (recentSpikeTimestamps.size > MAX_VIBRATION_SPIKES_IN_WINDOW) {
+                        // Suppress vehicle vibration chatter
+                        return
+                    }
                 }
 
-                // Compute high-pass impulse derivative (delta acceleration)
-                val dAx = ax - lastAx
-                val dAy = ay - lastAy
-                val dAz = az - lastAz
-                lastAx = ax
-                lastAy = ay
-                lastAz = az
+                // Rule C: Debounce Check (must be >= 120ms after previous tap peak)
+                if (now - lastTapTime < DEBOUNCE_INTERVAL_MS) return
 
-                val deltaMag = sqrt(dAx * dAx + dAy * dAy + dAz * dAz)
+                // Rule D: Transient Impulse Peak Detection
+                val isImpactSpike = jerk >= IMPULSE_JERK_THRESHOLD || abs(hpZ) >= HIGH_PASS_Z_THRESHOLD
 
-                // NOISE REJECTION FILTERS:
-                // 1. Acceleration delta or Z-axis delta must exceed tap threshold
-                // 2. Gyroscope rotational speed must be below rotation ceiling
-                // 3. Debounce interval between taps
-                val isTapImpulse = deltaMag > TAP_ACCEL_THRESHOLD || abs(dAz) > TAP_Z_ACCEL_THRESHOLD
-                val isLowRotation = currentGyroMag < MAX_GYRO_ROTATION_THRESHOLD
-                val isDebounced = (now - lastTapTime) >= MIN_TAP_INTERVAL_MS
-
-                if (isTapImpulse && isLowRotation && isDebounced) {
+                if (isImpactSpike) {
                     lastTapTime = now
-                    Log.i(TAG, "Back Tap Impulse Detected! deltaMag=%.2f, dAz=%.2f, gyroMag=%.2f".format(deltaMag, dAz, currentGyroMag))
-                    recordTap(now)
+                    processTapEvent(now, hpMagnitude)
                 }
             }
         }
     }
 
-    private fun recordTap(timestamp: Long) {
-        // Prune taps older than window
+    private fun processTapEvent(timestamp: Long, peakValue: Float) {
+        // Prune taps older than 1000ms window
         tapTimestamps.removeAll { timestamp - it > TRIPLE_TAP_WINDOW_MS }
-
         tapTimestamps.add(timestamp)
-        Log.i(TAG, "Back tap count: ${tapTimestamps.size} / 3 in window")
 
-        if (tapTimestamps.size >= 3) {
-            val firstTap = tapTimestamps.first()
-            val duration = timestamp - firstTap
+        val currentCount = tapTimestamps.size
+        val systemTime = System.currentTimeMillis()
 
-            if (duration <= TRIPLE_TAP_WINDOW_MS) {
-                lastDetectionTime = timestamp
-                tapTimestamps.clear()
-                Log.i(TAG, "TRIPLE BACK TAP SUCCESSFUL! Sequence completed in ${duration}ms.")
-                onTripleTap()
+        // Required Logcat Output: Tap Detected | Tap Count | Peak Value | Timestamp
+        Log.i(TAG, "Tap Detected | Tap Count: $currentCount | Peak Value: %.2f m/s² | Timestamp: %d".format(peakValue, systemTime))
+
+        when (currentCount) {
+            1 -> {
+                onSingleTap?.invoke()
+            }
+            2 -> {
+                onDoubleTap?.invoke()
+            }
+            3 -> {
+                val firstTap = tapTimestamps.first()
+                val duration = timestamp - firstTap
+
+                if (duration <= TRIPLE_TAP_WINDOW_MS) {
+                    lastDetectionTime = timestamp
+                    tapTimestamps.clear()
+                    Log.i(TAG, "TRIPLE TAP MATCHED! Sequence completed in ${duration}ms. Triggering Voice Control toggle.")
+                    onTripleTap()
+                }
             }
         }
     }
