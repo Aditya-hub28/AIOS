@@ -37,7 +37,7 @@ class ColumbusMlTapDetector(
         // ML Feature Extraction Parameters
         private const val SAMPLE_WINDOW_SIZE = 50   // 50 samples (~1000ms window at 50Hz)
         private const val FEATURE_COUNT = 6         // 6 axes: ax, ay, az, gx, gy, gz
-        private const val CONFIDENCE_THRESHOLD = 0.81f // Require >= 81% ML Confidence as requested
+        private const val CONFIDENCE_THRESHOLD = 0.79f // Require >= 79% ML Confidence as requested
         private const val ALPHA_LOW_PASS = 0.82f     // Low-pass filter for orientation-independent gravity tracking
         private const val MIN_Z_DOMINANCE_RATIO = 0.60f // Back tap requires Z-axis impulse to represent >= 60% of total vector energy
         private const val SCREEN_TOUCH_LOCKOUT_MS = 250L // Ignore back taps within 250ms of a screen touch
@@ -267,7 +267,7 @@ class ColumbusMlTapDetector(
                     BackTapDebugManager.logEvent("BACK_TAP_ACCEPTED [zRatio: %.0f%% | Conf: %.0f%%]".format(zDominanceRatio * 100f, confidence * 100f))
                     processTapEvent(now, confidence, rejectionReason)
                 } else if (confidence > 0.35f) {
-                    Log.d(TAG, "BACK_TAP_REJECTED: Confidence %.1f%% < 81.0%% | Reason: %s".format(confidence * 100f, rejectionReason))
+                    Log.d(TAG, "BACK_TAP_REJECTED: Confidence %.1f%% < 79.0%% | Reason: %s".format(confidence * 100f, rejectionReason))
                     BackTapDebugManager.logEvent("BACK_TAP_REJECTED [%s]".format(rejectionReason))
                 }
             }
@@ -302,7 +302,7 @@ class ColumbusMlTapDetector(
                 interpreter.run(inputBuffer, outputArray)
 
                 val tapProbability = outputArray[0][1]
-                val reason = if (tapProbability < CONFIDENCE_THRESHOLD) "ML Model Probability ${"%.1f".format(tapProbability * 100)}% < 81%" else "Passed ML Model"
+                val reason = if (tapProbability < CONFIDENCE_THRESHOLD) "ML Model Probability ${"%.1f".format(tapProbability * 100)}% < 79%" else "Passed ML Model"
                 return Pair(tapProbability, reason)
             } catch (t: Throwable) {
                 Log.e(TAG, "Error executing TFLite inference", t)
@@ -331,7 +331,7 @@ class ColumbusMlTapDetector(
         val stabilityRatio = (1.0f - (currentGyroMag / 0.45f)).coerceAtLeast(0f)
 
         val confidence = (jerkRatio * 0.40f + zRatioScore * 0.30f + magRatio * 0.20f + stabilityRatio * 0.10f).coerceAtMost(0.98f)
-        val reason = if (confidence >= CONFIDENCE_THRESHOLD) "Physical Back Tap Verified" else "Confidence %.1f%% below 81.0%%".format(confidence * 100f)
+        val reason = if (confidence >= CONFIDENCE_THRESHOLD) "Physical Back Tap Verified" else "Confidence %.1f%% below 79.0%%".format(confidence * 100f)
         return Pair(confidence, reason)
     }
 

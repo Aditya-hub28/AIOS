@@ -289,10 +289,10 @@ fun BackTapDebugScreen(
                         color = Color(0xFF00E676)
                     )
                     Text(
-                        text = "${"%.1f".format(confidencePct)}%  (Threshold >= 81%)",
+                        text = "${"%.1f".format(confidencePct)}%  (Threshold >= 79%)",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (confidencePct >= 81f) Color(0xFF00E676) else Color(0xFFFFD600)
+                        color = if (confidencePct >= 79f) Color(0xFF00E676) else Color(0xFFFFD600)
                     )
                 }
 
@@ -303,7 +303,7 @@ fun BackTapDebugScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp),
-                    color = if (confidencePct >= 81f) Color(0xFF00E676) else if (confidencePct >= 50f) Color(0xFFFFD600) else Color(0xFFFF5252),
+                    color = if (confidencePct >= 79f) Color(0xFF00E676) else if (confidencePct >= 50f) Color(0xFFFFD600) else Color(0xFFFF5252),
                     trackColor = Color.DarkGray
                 )
             }
