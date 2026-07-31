@@ -29,10 +29,11 @@ class BackTapDetector(
         private const val ALPHA_LOW_PASS = 0.82f
         private const val ALPHA_HIGH_PASS = 0.78f
 
-        // Subtle Tap Bandpass Filter tuned specifically for small, light finger back taps (0.40 m/s² to 2.80 m/s²)
-        private const val MIN_TAP_IMPULSE = 0.40f // Minimum peak for a subtle finger tap
-        private const val MAX_TAP_IMPULSE = 2.80f // Maximum peak ceiling (rejects heavy motion/shakes > 2.80 m/s²)
-        private const val MAX_GYRO_ROTATION_THRESHOLD = 2.8f // rad/s rotation ceiling (blocks walking/shaking)
+        // Finger Tap Impulse & Jerk Thresholds (tuned to eliminate normal hand motion false positives)
+        private const val MIN_TAP_IMPULSE = 1.20f // Minimum peak for a real finger impact tap
+        private const val MAX_TAP_IMPULSE = 5.50f // Maximum peak ceiling (rejects heavy shakes)
+        private const val MIN_JERK_THRESHOLD = 7.50f // m/s³ minimum Jerk derivative (sharp impact vs smooth hand motion)
+        private const val MAX_GYRO_ROTATION_THRESHOLD = 1.60f // rad/s rotation ceiling (blocks normal hand/wrist movement)
 
         // Timing Rules
         private const val DEBOUNCE_INTERVAL_MS = 90L // Ignore repeated sensor spikes for 90ms
@@ -193,12 +194,14 @@ class BackTapDetector(
                 // Rule C: Debounce Check (must be >= 120ms after previous tap peak)
                 if (now - lastTapTime < DEBOUNCE_INTERVAL_MS) return
 
-                // Rule D: Subtle Tap Impulse Window Check (Only accepts small gentle taps in range 0.40 m/s² .. 2.80 m/s²)
+                // Rule D: Finger Tap Impulse & High-Jerk Derivative Check
+                // Smooth hand movements have jerk < 4.0 m/s³, whereas physical finger taps produce sharp jerk >= 7.50 m/s³
                 val absZ = abs(hpZ)
-                val isSubtleTapImpulse = (absZ in MIN_TAP_IMPULSE..MAX_TAP_IMPULSE) ||
+                val isImpactRange = (absZ in MIN_TAP_IMPULSE..MAX_TAP_IMPULSE) ||
                         (hpMagnitude in MIN_TAP_IMPULSE..MAX_TAP_IMPULSE)
+                val isSharpJerk = jerk >= MIN_JERK_THRESHOLD
 
-                if (isSubtleTapImpulse) {
+                if (isImpactRange && isSharpJerk) {
                     lastTapTime = now
                     processTapEvent(now, hpMagnitude)
                 }
