@@ -14,7 +14,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import android.view.animation.FastOutSlowInInterpolator
+import android.view.animation.DecelerateInterpolator
 import kotlin.math.min
 
 /**
@@ -81,7 +81,7 @@ object GridOverlayManager {
 
             boundsAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = 250L
-                interpolator = FastOutSlowInInterpolator()
+                interpolator = DecelerateInterpolator()
                 addUpdateListener { animator ->
                     val fraction = animator.animatedValue as Float
                     animatedBounds.left = startLeft + (targetBounds.left - startLeft) * fraction
