@@ -39,7 +39,7 @@ class ColumbusMlTapDetector(
         private const val FEATURE_COUNT = 6         // 6 axes: ax, ay, az, gx, gy, gz
         private const val CONFIDENCE_THRESHOLD = 0.79f // Require >= 79% ML Confidence as requested
         private const val ALPHA_LOW_PASS = 0.82f     // Low-pass filter for orientation-independent gravity tracking
-        private const val MIN_Z_DOMINANCE_RATIO = 0.60f // Back tap requires Z-axis impulse to represent >= 60% of total vector energy
+        private const val MIN_Z_DOMINANCE_RATIO = 0.70f // Back tap requires Z-axis impulse to represent >= 70% of total vector energy
         private const val SCREEN_TOUCH_LOCKOUT_MS = 250L // Ignore back taps within 250ms of a screen touch
 
         // Timing & Sequence Rules
@@ -235,7 +235,7 @@ class ColumbusMlTapDetector(
                     gx = lastGyroX, gy = lastGyroY, gz = lastGyroZ,
                     mag = vectorMag, peak = vectorMag, xp = absX, yp = absY, zp = absZ,
                     zRatio = zDominanceRatio, jk = jerk, gm = gyroMag,
-                    minImp = confidence, maxImp = 1.0f, minJk = 0.47f, maxGy = 0.45f,
+                    minImp = confidence, maxImp = 1.0f, minJk = 0.45f, maxGy = 0.45f,
                     state = if (confidence >= CONFIDENCE_THRESHOLD && !isScreenTouchSuppressed) "POSSIBLE_TAP" else "IDLE",
                     motion = motionState.name,
                     count = tapTimestamps.size,
@@ -250,7 +250,7 @@ class ColumbusMlTapDetector(
 
                 // EVALUATE SCREEN TOUCH SUPPRESSION
                 if (isScreenTouchSuppressed) {
-                    if (jerk >= 0.47f) {
+                    if (jerk >= 0.45f) {
                         val touchGap = now - lastTouchTs
                         Log.w(TAG, "SCREEN_TAP_SUPPRESSED: Candidate occurred ${touchGap}ms after screen touch.")
                         BackTapDebugManager.logEvent("SCREEN_TAP_SUPPRESSED (Touch ${touchGap}ms ago)")
@@ -263,7 +263,7 @@ class ColumbusMlTapDetector(
 
                 if (confidence >= CONFIDENCE_THRESHOLD) {
                     lastTapTime = now
-                    Log.i(TAG, "BACK_TAP_ACCEPTED: Dominant Z-axis impulse (zRatio=%.2f >= 0.60) | Conf: %.1f%%".format(zDominanceRatio, confidence * 100f))
+                    Log.i(TAG, "BACK_TAP_ACCEPTED: Dominant Z-axis impulse (zRatio=%.2f >= 0.70) | Conf: %.1f%%".format(zDominanceRatio, confidence * 100f))
                     BackTapDebugManager.logEvent("BACK_TAP_ACCEPTED [zRatio: %.0f%% | Conf: %.0f%%]".format(zDominanceRatio * 100f, confidence * 100f))
                     processTapEvent(now, confidence, rejectionReason)
                 } else if (confidence > 0.35f) {
@@ -314,14 +314,14 @@ class ColumbusMlTapDetector(
             return Pair(0.10f, "Hand Movement Noise (Gyro %.2f > 0.45)".format(currentGyroMag))
         }
 
-        // Rule B: Cover Dampening Impulse Guard (cover dampened back taps produce Jerk >= 0.47 m/s³)
-        if (currentJerk < 0.47f) {
-            return Pair(0.05f, "Subthreshold Jerk (Jerk %.2f < 0.47)".format(currentJerk))
+        // Rule B: Cover Dampening Impulse Guard (cover dampened back taps produce Jerk >= 0.45 m/s³)
+        if (currentJerk < 0.45f) {
+            return Pair(0.05f, "Subthreshold Jerk (Jerk %.2f < 0.45)".format(currentJerk))
         }
 
         // Rule C: Dominant Z-Axis Impulse Enforcement (Screen taps have X/Y shear, Back taps are Z-dominant)
         if (zDominanceRatio < MIN_Z_DOMINANCE_RATIO) {
-            return Pair(0.12f, "Screen Tap X/Y Shear (zRatio %.2f < 0.60)".format(zDominanceRatio))
+            return Pair(0.12f, "Screen Tap X/Y Shear (zRatio %.2f < 0.70)".format(zDominanceRatio))
         }
 
         // Compute Sweet-Spot ML Confidence Score with Cover Compensation
