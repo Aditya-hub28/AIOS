@@ -31,9 +31,12 @@ object VoiceControlManager {
      */
     fun init(context: Context) {
         if (backTapDetector == null) {
-            val detector = BackTapDetector(context.applicationContext) {
-                toggleVoiceControl(context.applicationContext)
-            }
+            val detector = BackTapDetector(
+                context = context.applicationContext,
+                onTripleTap = {
+                    toggleVoiceControl(context.applicationContext)
+                }
+            )
             backTapDetector = detector
             detector.startListening()
             Log.i(TAG, "VoiceControlManager initialized with Triple Back-Tap Detection.")
