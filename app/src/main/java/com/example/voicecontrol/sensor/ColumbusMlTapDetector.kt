@@ -20,13 +20,7 @@ import kotlin.math.sqrt
 
 /**
  * Production-Grade Machine Learning Back Tap Classifier based on Google Pixel's Columbus / NanoApp ML Architecture.
- *
- * Architecture Highlights:
- * 1. 50-Sample Dual-Sensor Feature Matrix Window (6-axis: Accel X/Y/Z + Gyro X/Y/Z sampled at 50Hz / 20ms).
- * 2. TensorFlow Lite Neural Network Inference Engine producing a continuous ML Confidence Score (0% - 100%).
- * 3. ML Noise Filter natively rejecting walking step rhythms (1.5-2.5Hz), pocket movement, and vehicle vibrations.
- * 4. Strict 3-Tap Sequence State Machine enforcing max 400ms inter-tap gap and max 1000ms total window (t3 - t1 < 1000ms).
- * 5. Rejection Reason Logging & Latency Tracking.
+ * Orientation-Independent Dynamic Gravity Tracking + 50Hz Feature Matrix Sampler + ML Confidence Scoring.
  */
 class ColumbusMlTapDetector(
     private val context: Context,
@@ -42,6 +36,7 @@ class ColumbusMlTapDetector(
         private const val SAMPLE_WINDOW_SIZE = 50   // 50 samples (~1000ms window at 50Hz)
         private const val FEATURE_COUNT = 6         // 6 axes: ax, ay, az, gx, gy, gz
         private const val CONFIDENCE_THRESHOLD = 0.85f // Require >= 85% ML Confidence
+        private const val ALPHA_LOW_PASS = 0.82f     // Low-pass filter for orientation-independent gravity tracking
 
         // Timing & Sequence Rules
         private const val SAMPLING_PERIOD_MS = 20L      // 50Hz sampling
@@ -66,7 +61,11 @@ class ColumbusMlTapDetector(
     private var lastAccelX = 0f; private var lastAccelY = 0f; private var lastAccelZ = 0f
     private var lastGyroX = 0f; private var lastGyroY = 0f; private var lastGyroZ = 0f
 
-    private var prevHpZ = 0f
+    // Dynamic Gravity Tracking Filter (Orientation Independent)
+    private var lpX = 0f; private var lpY = 0f; private var lpZ = 0f
+    private var hpX = 0f; private var hpY = 0f; private var hpZ = 0f
+    private var prevHpX = 0f; private var prevHpY = 0f; private var prevHpZ = 0f
+
     private var lastSampleTimestamp = 0L
 
     // Sequence State Machine Variables
@@ -80,9 +79,6 @@ class ColumbusMlTapDetector(
         initTfLiteInterpreter()
     }
 
-    /**
-     * Initializes TensorFlow Lite interpreter from assets/columbus_gesture.tflite if present.
-     */
     private fun initTfLiteInterpreter() {
         try {
             val assetManager = context.assets
@@ -142,7 +138,9 @@ class ColumbusMlTapDetector(
         sampleIndex = 0
         lastAccelX = 0f; lastAccelY = 0f; lastAccelZ = 0f
         lastGyroX = 0f; lastGyroY = 0f; lastGyroZ = 0f
-        prevHpZ = 0f
+        lpX = 0f; lpY = 0f; lpZ = 0f
+        hpX = 0f; hpY = 0f; hpZ = 0f
+        prevHpX = 0f; prevHpY = 0f; prevHpZ = 0f
         tapTimestamps.clear()
         sequenceStartTime = 0L
     }
@@ -161,9 +159,30 @@ class ColumbusMlTapDetector(
             }
 
             Sensor.TYPE_ACCELEROMETER -> {
-                lastAccelX = event.values[0]
-                lastAccelY = event.values[1]
-                lastAccelZ = event.values[2]
+                val rawX = event.values[0]
+                val rawY = event.values[1]
+                val rawZ = event.values[2]
+
+                lastAccelX = rawX
+                lastAccelY = rawY
+                lastAccelZ = rawZ
+
+                // Dynamic Low-Pass Gravity Tracking (Orientation Independent)
+                lpX = ALPHA_LOW_PASS * lpX + (1f - ALPHA_LOW_PASS) * rawX
+                lpY = ALPHA_LOW_PASS * lpY + (1f - ALPHA_LOW_PASS) * rawY
+                lpZ = ALPHA_LOW_PASS * lpZ + (1f - ALPHA_LOW_PASS) * rawZ
+
+                prevHpX = hpX; prevHpY = hpY; prevHpZ = hpZ
+                hpX = rawX - lpX
+                hpY = rawY - lpY
+                hpZ = rawZ - lpZ
+
+                val dX = hpX - prevHpX
+                val dY = hpY - prevHpY
+                val dZ = hpZ - prevHpZ
+                val jerk = sqrt(dX * dX + dY * dY + dZ * dZ)
+                val hpMagnitude = sqrt(hpX * hpX + hpY * hpY + hpZ * hpZ)
+                val absZ = abs(hpZ)
 
                 // Throttle sampling to ~50Hz (20ms interval)
                 if (now - lastSampleTimestamp < SAMPLING_PERIOD_MS) return
@@ -180,19 +199,16 @@ class ColumbusMlTapDetector(
                 featureMatrix[sampleIndex][5] = lastGyroZ
                 sampleIndex = (sampleIndex + 1) % SAMPLE_WINDOW_SIZE
 
-                // Run Machine Learning Signal Classification
-                val (confidence, rejectionReason) = runColumbusInference()
-                val inferenceLatencyMs = ((SystemClock.elapsedRealtimeNanos() - inferenceStartNanos) / 1_000_000L).coerceAtLeast(1L)
-
                 val gyroMag = sqrt(lastGyroX * lastGyroX + lastGyroY * lastGyroY + lastGyroZ * lastGyroZ)
                 val accelMag = sqrt(lastAccelX * lastAccelX + lastAccelY * lastAccelY + lastAccelZ * lastAccelZ)
-                val hpZ = lastAccelZ - 9.81f
-                val jerk = abs(hpZ - prevHpZ)
-                prevHpZ = hpZ
+
+                // Run Machine Learning Signal Classification with dynamic HP values
+                val (confidence, rejectionReason) = runColumbusInference(jerk, hpMagnitude, absZ, gyroMag)
+                val inferenceLatencyMs = ((SystemClock.elapsedRealtimeNanos() - inferenceStartNanos) / 1_000_000L).coerceAtLeast(1L)
 
                 val motionState = when {
-                    gyroMag < 0.20f && accelMag in 9.0f..10.5f -> MotionClassification.STILL
-                    gyroMag > 1.80f || accelMag > 15.0f -> MotionClassification.SHAKING
+                    gyroMag < 0.20f && hpMagnitude < 0.25f -> MotionClassification.STILL
+                    gyroMag > 1.80f || accelMag > 16.0f -> MotionClassification.SHAKING
                     confidence >= CONFIDENCE_THRESHOLD -> MotionClassification.BACK_TAP_LIKE
                     else -> MotionClassification.MOVING
                 }
@@ -202,10 +218,10 @@ class ColumbusMlTapDetector(
                 // Update In-App Debug Manager with ML Confidence & Metrics
                 BackTapDebugManager.updateTelemetry(
                     ax = lastAccelX, ay = lastAccelY, az = lastAccelZ,
-                    lx = 0f, ly = 0f, lz = hpZ,
+                    lx = hpX, ly = hpY, lz = hpZ,
                     gx = lastGyroX, gy = lastGyroY, gz = lastGyroZ,
-                    mag = accelMag, peak = abs(hpZ), zp = abs(hpZ), jk = jerk, gm = gyroMag,
-                    minImp = CONFIDENCE_THRESHOLD, maxImp = 1.0f, minJk = 0.35f, maxGy = 1.50f,
+                    mag = hpMagnitude, peak = hpMagnitude, zp = absZ, jk = jerk, gm = gyroMag,
+                    minImp = confidence, maxImp = 1.0f, minJk = 0.35f, maxGy = 1.30f,
                     state = if (confidence >= CONFIDENCE_THRESHOLD) "POSSIBLE_TAP" else "IDLE",
                     motion = motionState.name,
                     count = tapTimestamps.size,
@@ -229,14 +245,12 @@ class ColumbusMlTapDetector(
     }
 
     /**
-     * Executes TensorFlow Lite inference or high-precision Columbus ML feature classification.
-     * Returns Pair<ConfidenceScore (0.0..1.0), RejectionReasonString>
+     * Executes TensorFlow Lite inference or high-precision orientation-independent Columbus ML feature classification.
      */
-    private fun runColumbusInference(): Pair<Float, String> {
+    private fun runColumbusInference(currentJerk: Float, currentHpMag: Float, currentAbsZ: Float, currentGyroMag: Float): Pair<Float, String> {
         val interpreter = tfliteInterpreter
         if (interpreter != null) {
             try {
-                // TFLite input tensor shape [1, 50, 6, 1]
                 val inputBuffer = ByteBuffer.allocateDirect(1 * SAMPLE_WINDOW_SIZE * FEATURE_COUNT * 4)
                 inputBuffer.order(ByteOrder.nativeOrder())
 
@@ -247,7 +261,7 @@ class ColumbusMlTapDetector(
                     }
                 }
 
-                val outputArray = Array(1) { FloatArray(2) } // Output [1, 2]: [NoTapProb, TapProb]
+                val outputArray = Array(1) { FloatArray(2) }
                 interpreter.run(inputBuffer, outputArray)
 
                 val tapProbability = outputArray[0][1]
@@ -258,63 +272,49 @@ class ColumbusMlTapDetector(
             }
         }
 
-        // High-Precision Columbus Signal Feature Extraction Engine
-        var peakJerk = 0f
-        var peakZ = 0f
+        // Orientation-Independent Columbus Signal Feature Extraction Engine
         var maxGyro = 0f
         var stepCountWindow = 0
 
         for (i in 0 until SAMPLE_WINDOW_SIZE) {
-            val ax = featureMatrix[i][0]
-            val ay = featureMatrix[i][1]
-            val az = featureMatrix[i][2]
             val gx = featureMatrix[i][3]
             val gy = featureMatrix[i][4]
             val gz = featureMatrix[i][5]
-
             val gMag = sqrt(gx * gx + gy * gy + gz * gz)
-            val hpZ = abs(az - 9.81f)
 
             if (gMag > maxGyro) maxGyro = gMag
-            if (hpZ > peakZ) peakZ = hpZ
-            if (hpZ > 1.2f) peakJerk = max(peakJerk, hpZ)
-
-            // Step rhythm detection (periodic 1.5-2.5Hz pulses indicate walking)
-            if (hpZ in 0.8f..2.5f && gMag in 0.3f..1.2f) {
-                stepCountWindow++
-            }
+            if (gMag in 0.35f..1.60f) stepCountWindow++
         }
 
-        // Evaluate ML feature rules
-        if (maxGyro > 1.60f) {
-            return Pair(0.15f, "Wrist Rotation Noise (Gyro %.2f > 1.60)".format(maxGyro))
+        // Rule A: Rotational Ceiling Guard (reject wrist rotation or turning phone)
+        if (maxGyro > 1.30f) {
+            return Pair(0.10f, "Wrist Rotation Noise (Gyro %.2f > 1.30)".format(maxGyro))
         }
 
-        if (stepCountWindow > 8) {
-            return Pair(0.20f, "Walking Step Rhythm Detected (%d steps in window)".format(stepCountWindow))
+        // Rule B: Walking Gait Rhythm Suppression
+        if (stepCountWindow > 14) {
+            return Pair(0.15f, "Walking Gait Pattern Detected (%d step pulses)".format(stepCountWindow))
         }
 
-        if (peakZ < 0.30f) {
-            return Pair(0.10f, "Subthreshold Z-Impact (Peak %.2f < 0.30)".format(peakZ))
+        // Rule C: Subthreshold Impact Spike
+        if (currentJerk < 0.60f && currentHpMag < 0.45f) {
+            return Pair(0.05f, "Subthreshold Impact (Jerk %.2f < 0.60)".format(currentJerk))
         }
 
-        // Calculate continuous confidence score based on impulse shockwave profile
-        val jerkScore = min(1.0f, peakJerk / 1.50f)
-        val stabilityScore = max(0f, 1.0f - (maxGyro / 1.60f))
-        val confidence = min(0.98f, (jerkScore * 0.70f + stabilityScore * 0.30f))
+        // Calculate continuous confidence score
+        val jerkScore = min(1.0f, currentJerk / 1.80f)
+        val zImpactScore = min(1.0f, currentAbsZ / 1.20f)
+        val stabilityScore = max(0f, 1.0f - (maxGyro / 1.30f))
 
+        val confidence = min(0.98f, (jerkScore * 0.50f + zImpactScore * 0.30f + stabilityScore * 0.20f))
         val reason = if (confidence >= CONFIDENCE_THRESHOLD) "Chassis Impact Pattern Verified" else "Confidence %.1f%% below 85.0%%".format(confidence * 100f)
         return Pair(confidence, reason)
     }
 
-    /**
-     * Enforces strict 3-Tap Rhythm State Machine.
-     */
     private fun processTapEvent(timestamp: Long, confidence: Float, rejectionReason: String) {
         val gap = if (tapTimestamps.isNotEmpty()) timestamp - tapTimestamps.last() else 0L
         lastGapMs = gap
 
-        // 1. Max Inter-Tap Gap Rule: If gap > 400ms, RESET SEQUENCE!
         if (tapTimestamps.isNotEmpty() && gap > MAX_INTER_TAP_GAP_MS) {
             Log.w(TAG, "SEQUENCE_RESET: Gap ${gap}ms exceeded ${MAX_INTER_TAP_GAP_MS}ms limit.")
             BackTapDebugManager.logEvent("SEQUENCE_RESET (Gap ${gap}ms > 400ms)")
