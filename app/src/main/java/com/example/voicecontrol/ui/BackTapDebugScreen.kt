@@ -242,7 +242,7 @@ fun BackTapDebugScreen(
                 ) {
                     MetricCell("Touch TS", if (telemetry.touchTimestampMs > 0) "${telemetry.touchTimestampMs} ms" else "None")
                     MetricCell("Impulse TS", if (telemetry.impulseTimestampMs > 0) "${telemetry.impulseTimestampMs} ms" else "None")
-                    MetricCell("Z Dominance Ratio", "${"%.0f".format(telemetry.zDominanceRatio * 100f)}% (Req >= 65%)", isHighlight = telemetry.zDominanceRatio >= 0.65f)
+                    MetricCell("Z Dominance Ratio", "${"%.0f".format(telemetry.zDominanceRatio * 100f)}% (Req >= 80%)", isHighlight = telemetry.zDominanceRatio >= 0.80f)
                 }
             }
         }
