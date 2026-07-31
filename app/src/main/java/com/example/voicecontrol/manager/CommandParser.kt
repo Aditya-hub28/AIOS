@@ -38,8 +38,8 @@ sealed interface VoiceCommand {
     data class SwipeGesture(val type: GestureType, val label: String) : VoiceCommand
 
     /**
-     * Intent to click a UI element by text or content description ("Tap Search", "Tap Install").
-     * @param targetText Element text/description to match and click.
+     * Intent to click a UI element by text or content description ("Tap Search", "Tap Communities", "Tap Chats").
+     * @param targetText Dynamic element text/description to match and click recursively on screen.
      */
     data class TapElement(val targetText: String) : VoiceCommand
 
@@ -80,7 +80,7 @@ sealed interface VoiceCommand {
     object ClickHere : VoiceCommand
 
     /**
-     * Debug intent to log all discovered launchable applications to Logcat under VOSK_APPS.
+     * Debug intent to log all discovered launchable applications to Logcat under VOICE_APPS.
      */
     object ListApps : VoiceCommand
 
@@ -92,7 +92,8 @@ sealed interface VoiceCommand {
 }
 
 /**
- * CommandParser parses recognized text into structured VoiceCommand instances.
+ * CommandParser parses recognized speech strings into structured VoiceCommand instances.
+ * Restores 100% dynamic Tap by Text without any hardcoded tap restrictions.
  */
 object CommandParser {
 
@@ -100,7 +101,7 @@ object CommandParser {
     private val TAP_PREFIXES = listOf("tap", "click", "press", "select", "touch")
 
     /**
-     * Parses a raw spoken text string and extracts the intent.
+     * Parses a raw spoken text string and extracts the voice intent.
      */
     fun parse(rawText: String): VoiceCommand {
         val trimmedText = rawText.trim()
@@ -149,7 +150,7 @@ object CommandParser {
             return VoiceCommand.TapNumber(numberFromTap)
         }
 
-        // 5. Check for Text-Based Click voice commands ("Tap Search", "Click Settings")
+        // 5. Dynamic "Tap by Text" matching for ANY "tap <text>", "click <text>", "press <text>" command
         for (prefix in TAP_PREFIXES) {
             if (lowerText.startsWith("$prefix ")) {
                 val targetText = trimmedText.substring(prefix.length).trim()
@@ -197,7 +198,7 @@ object CommandParser {
             }
         }
 
-        // 8. Check for App Opening voice commands ("open leetcode", "leetcode", "open whatsapp")
+        // 8. Check for App Opening voice commands ("open whatsapp", "open leetcode", "open instagram")
         for (prefix in OPEN_PREFIXES) {
             if (lowerText.startsWith("$prefix ")) {
                 val extractedName = trimmedText.substring(prefix.length).trim()
@@ -208,8 +209,8 @@ object CommandParser {
             }
         }
 
-        // Standalone app name launch fallback (e.g. "leetcode", "whatsapp")
-        if (!lowerText.contains(" ")) {
+        // Standalone app name launch fallback (e.g. "leetcode", "whatsapp", "instagram")
+        if (!lowerText.contains(" ") && lowerText.length > 2) {
             return VoiceCommand.OpenApp(trimmedText)
         }
 

@@ -51,9 +51,6 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
 
-    // Vosk Offline Speech Recognition Engine (Maven Central)
-    implementation("com.alphacephei:vosk-android:0.3.75")
-
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
