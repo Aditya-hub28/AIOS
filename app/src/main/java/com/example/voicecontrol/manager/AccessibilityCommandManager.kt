@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Singleton manager routing global action, scroll, text click, and gesture execution requests to the active VoiceAccessibilityService.
- * Extensible for future accessibility features (overlay, node inspection).
+ * Singleton manager routing global action, scroll, text click, overlay, and gesture execution requests to the active VoiceAccessibilityService.
+ * Extensible for future accessibility features (grid overlay, OCR, AI agent).
  */
 object AccessibilityCommandManager {
 
@@ -38,6 +38,51 @@ object AccessibilityCommandManager {
         serviceInstance = null
         _isServiceConnected.value = false
         Log.i(TAG, "VoiceAccessibilityService unregistered.")
+    }
+
+    /**
+     * Displays number badge overlays over all clickable UI elements on screen.
+     */
+    fun showNumbers(): Boolean {
+        val service = serviceInstance
+        if (service != null) {
+            val result = service.showNumberOverlays()
+            Log.i(TAG, "Executed showNumbers(): $result")
+            return result
+        } else {
+            Log.w(TAG, "Unable to show numbers: VoiceAccessibilityService is not connected.")
+            return false
+        }
+    }
+
+    /**
+     * Hides and removes all number badge overlays.
+     */
+    fun hideNumbers(): Boolean {
+        val service = serviceInstance
+        if (service != null) {
+            val result = service.hideNumberOverlays()
+            Log.i(TAG, "Executed hideNumbers(): $result")
+            return result
+        } else {
+            Log.w(TAG, "Unable to hide numbers: VoiceAccessibilityService is not connected.")
+            return false
+        }
+    }
+
+    /**
+     * Clicks the element corresponding to mapped badge number ("Tap 5").
+     */
+    fun tapNumber(number: Int): Boolean {
+        val service = serviceInstance
+        if (service != null) {
+            val result = service.tapNumber(number)
+            Log.i(TAG, "Executed tapNumber($number): $result")
+            return result
+        } else {
+            Log.w(TAG, "Unable to tap number $number: VoiceAccessibilityService is not connected.")
+            return false
+        }
     }
 
     /**

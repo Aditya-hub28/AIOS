@@ -9,11 +9,14 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.example.voicecontrol.manager.AccessibilityCommandManager
 import com.example.voicecontrol.manager.GestureType
+import com.example.voicecontrol.overlay.NodeMappingManager
+import com.example.voicecontrol.overlay.NumberOverlayManager
 import com.example.voicecontrol.util.NodeSearchHelper
 
 /**
  * Dedicated Accessibility Service for executing Android global actions (Home, Back, Recent Apps),
- * text-based UI clicking ("Tap <element name>"), and controlled gesture navigation across all apps.
+ * text-based UI clicking ("Tap <element name>"), iPhone-style number overlays ("Show Numbers", "Tap 5"),
+ * and controlled gesture navigation across all apps.
  * Hardened against crashes to maintain continuous system stability.
  */
 class VoiceAccessibilityService : AccessibilityService() {
@@ -29,6 +32,92 @@ class VoiceAccessibilityService : AccessibilityService() {
             AccessibilityCommandManager.registerService(this)
         } catch (e: Exception) {
             Log.e(TAG, "Error during onServiceConnected", e)
+        }
+    }
+
+    /**
+     * Scans active screen and displays number badge overlays over all clickable elements.
+     */
+    fun showNumberOverlays(): Boolean {
+        return try {
+            val rootNode = rootInActiveWindow
+            val targets = NodeMappingManager.scanAndMapNodes(rootNode)
+            NumberOverlayManager.showOverlays(this, targets)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing number overlays", e)
+            false
+        }
+    }
+
+    /**
+     * Removes and hides all active number badge overlays.
+     */
+    fun hideNumberOverlays(): Boolean {
+        return try {
+            NumberOverlayManager.hideOverlays()
+            NodeMappingManager.clearMapping()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error hiding number overlays", e)
+            false
+        }
+    }
+
+    /**
+     * Clicks the UI element corresponding to the mapped badge number ("Tap 5").
+     */
+    fun tapNumber(number: Int): Boolean {
+        return try {
+            val target = NodeMappingManager.getTargetForNumber(number)
+            if (target != null) {
+                Log.i(TAG, "Executing tapNumber($number) -> Target Label: '${target.label}'")
+
+                // Try direct click on node or parent
+                var success = false
+                if (target.node.isClickable) {
+                    success = target.node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                }
+
+                if (!success) {
+                    var parent = target.node.parent
+                    var depth = 0
+                    while (parent != null && depth < 5) {
+                        if (parent.isClickable) {
+                            success = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            if (success) {
+                                try { parent.recycle() } catch (_: Exception) {}
+                                break
+                            }
+                        }
+                        val prevParent = parent
+                        parent = parent.parent
+                        try { prevParent.recycle() } catch (_: Exception) {}
+                        depth++
+                    }
+                }
+
+                // Fallback: Dispatch gesture tap at center of bounds
+                if (!success && !target.bounds.isEmpty) {
+                    val tapX = target.bounds.centerX().toFloat()
+                    val tapY = target.bounds.centerY().toFloat()
+                    Log.i(TAG, "Dispatching gesture tap fallback for number $number at ($tapX, $tapY)")
+                    success = dispatchSwipePath(tapX, tapY, tapX, tapY, duration = 50L)
+                }
+
+                // Auto refresh overlays after tap
+                if (NumberOverlayManager.isOverlaysVisible()) {
+                    showNumberOverlays()
+                }
+
+                success
+            } else {
+                Log.w(TAG, "No mapped target found for number $number")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error performing tap number $number", e)
+            false
         }
     }
 
@@ -238,7 +327,12 @@ class VoiceAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Lightweight event handler
+        // Auto-refresh overlays on screen content changes if overlays are active
+        if (NumberOverlayManager.isOverlaysVisible()) {
+            if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                showNumberOverlays()
+            }
+        }
     }
 
     override fun onInterrupt() {
@@ -247,6 +341,7 @@ class VoiceAccessibilityService : AccessibilityService() {
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         Log.i(TAG, "VoiceAccessibilityService unbound.")
+        hideNumberOverlays()
         AccessibilityCommandManager.unregisterService()
         return super.onUnbind(intent)
     }
@@ -254,6 +349,7 @@ class VoiceAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         Log.i(TAG, "VoiceAccessibilityService destroyed.")
+        hideNumberOverlays()
         AccessibilityCommandManager.unregisterService()
     }
 }

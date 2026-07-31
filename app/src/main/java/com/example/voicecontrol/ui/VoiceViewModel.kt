@@ -23,8 +23,8 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel managing business logic for sub-500ms voice recognition, real-time command execution,
- * text-based UI clicking ("Tap Search", "Tap Install"), iPhone-style gesture navigation,
- * app launching, global actions, and foreground service lifecycle.
+ * iPhone-style number overlays ("Show Numbers", "Tap 5"), text-based UI clicking ("Tap Search"),
+ * gesture navigation, app launching, global actions, and foreground service lifecycle.
  */
 class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -281,6 +281,53 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
         speechManager.cancel()
 
         when (command) {
+            VoiceCommand.ShowNumbers -> {
+                val t4_triggered = System.currentTimeMillis()
+                Log.i(PERF_TAG, "[PERF] 4. Show Numbers Triggered: $t4_triggered ms")
+
+                val success = AccessibilityCommandManager.showNumbers()
+                val t5_completed = System.currentTimeMillis()
+                val totalLatency = t5_completed - t1_recognitionComplete
+
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+
+                if (success) {
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Showing Numbers")
+                } else {
+                    _uiState.value = VoiceUiState.Error(message = "Unable to show numbers. Ensure Accessibility Service is enabled.")
+                }
+            }
+            VoiceCommand.HideNumbers -> {
+                val t4_triggered = System.currentTimeMillis()
+                Log.i(PERF_TAG, "[PERF] 4. Hide Numbers Triggered: $t4_triggered ms")
+
+                val success = AccessibilityCommandManager.hideNumbers()
+                val t5_completed = System.currentTimeMillis()
+                val totalLatency = t5_completed - t1_recognitionComplete
+
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+
+                if (success) {
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Hidden Numbers")
+                }
+            }
+            is VoiceCommand.TapNumber -> {
+                val num = command.number
+                val t4_triggered = System.currentTimeMillis()
+                Log.i(PERF_TAG, "[PERF] 4. Tap Number Triggered: $t4_triggered ms | Number: $num")
+
+                val success = AccessibilityCommandManager.tapNumber(num)
+                val t5_completed = System.currentTimeMillis()
+                val totalLatency = t5_completed - t1_recognitionComplete
+
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+
+                if (success) {
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Tapped #$num")
+                } else {
+                    _uiState.value = VoiceUiState.Error(message = "Number #$num is not available on current screen.")
+                }
+            }
             is VoiceCommand.TapElement -> {
                 val targetText = command.targetText
                 val t4_triggered = System.currentTimeMillis()
