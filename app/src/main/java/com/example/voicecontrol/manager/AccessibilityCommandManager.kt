@@ -48,6 +48,14 @@ object AccessibilityCommandManager {
     fun clickHere(): Boolean = serviceInstance?.clickHere() ?: false
     fun selectGridCell(cellNumber: Int): Boolean = serviceInstance?.selectGridCell(cellNumber) ?: false
 
+    // --- BACK TAP DEBUG OVERLAY SYSTEM METHODS ---
+    fun showTapDebug(context: Context) {
+        com.example.voicecontrol.overlay.BackTapDebugOverlay.showOverlay(context)
+    }
+    fun hideTapDebug() {
+        com.example.voicecontrol.overlay.BackTapDebugOverlay.hideOverlay()
+    }
+
     /**
      * Displays number badge overlays over all clickable UI elements on screen.
      */

@@ -373,6 +373,15 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.value = VoiceUiState.Error(message = "Grid Overlay is not active.")
                 }
             }
+            VoiceCommand.EnableTapDebug -> {
+                val context = getApplication<Application>().applicationContext
+                AccessibilityCommandManager.showTapDebug(context)
+                _uiState.value = VoiceUiState.Success(recognizedText = "Tap Debug Mode Enabled")
+            }
+            VoiceCommand.DisableTapDebug -> {
+                AccessibilityCommandManager.hideTapDebug()
+                _uiState.value = VoiceUiState.Success(recognizedText = "Tap Debug Mode Disabled")
+            }
             VoiceCommand.ShowNumbers -> {
                 val t4_triggered = System.currentTimeMillis()
                 Log.i(PERF_TAG, "[PERF] 4. Show Numbers Triggered: $t4_triggered ms")

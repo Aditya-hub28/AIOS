@@ -80,6 +80,12 @@ sealed interface VoiceCommand {
     object ClickHere : VoiceCommand
 
     /**
+     * Debug commands for Back Tap sensor telemetry system.
+     */
+    object EnableTapDebug : VoiceCommand
+    object DisableTapDebug : VoiceCommand
+
+    /**
      * Unrecognized or unhandled voice command.
      * @param rawText Full original spoken text.
      */
@@ -131,7 +137,17 @@ object CommandParser {
 
         val lowerText = trimmedText.lowercase(Locale.getDefault())
 
-        // 1. Check for Dynamic Grid Overlay commands
+        // 1. Check for Tap Debug mode commands
+        when (lowerText) {
+            "enable tap debug", "show tap debug", "start tap debug", "turn on tap debug", "enable debug" -> {
+                return VoiceCommand.EnableTapDebug
+            }
+            "disable tap debug", "hide tap debug", "stop tap debug", "turn off tap debug", "disable debug" -> {
+                return VoiceCommand.DisableTapDebug
+            }
+        }
+
+        // 2. Check for Dynamic Grid Overlay commands
         val gridCmd = parseDynamicGridCommand(lowerText)
         if (gridCmd != null) {
             return gridCmd
