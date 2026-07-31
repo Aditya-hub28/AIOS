@@ -235,7 +235,7 @@ class ColumbusMlTapDetector(
                     gx = lastGyroX, gy = lastGyroY, gz = lastGyroZ,
                     mag = vectorMag, peak = vectorMag, xp = absX, yp = absY, zp = absZ,
                     zRatio = zDominanceRatio, jk = jerk, gm = gyroMag,
-                    minImp = confidence, maxImp = 1.0f, minJk = 0.45f, maxGy = 0.45f,
+                    minImp = confidence, maxImp = 1.0f, minJk = 0.44f, maxGy = 0.45f,
                     state = if (confidence >= CONFIDENCE_THRESHOLD && !isScreenTouchSuppressed) "POSSIBLE_TAP" else "IDLE",
                     motion = motionState.name,
                     count = tapTimestamps.size,
@@ -250,7 +250,7 @@ class ColumbusMlTapDetector(
 
                 // EVALUATE SCREEN TOUCH SUPPRESSION
                 if (isScreenTouchSuppressed) {
-                    if (jerk >= 0.45f) {
+                    if (jerk >= 0.44f) {
                         val touchGap = now - lastTouchTs
                         Log.w(TAG, "SCREEN_TAP_SUPPRESSED: Candidate occurred ${touchGap}ms after screen touch.")
                         BackTapDebugManager.logEvent("SCREEN_TAP_SUPPRESSED (Touch ${touchGap}ms ago)")
@@ -314,9 +314,9 @@ class ColumbusMlTapDetector(
             return Pair(0.10f, "Hand Movement Noise (Gyro %.2f > 0.45)".format(currentGyroMag))
         }
 
-        // Rule B: Cover Dampening Impulse Guard (cover dampened back taps produce Jerk >= 0.45 m/s³)
-        if (currentJerk < 0.45f) {
-            return Pair(0.05f, "Subthreshold Jerk (Jerk %.2f < 0.45)".format(currentJerk))
+        // Rule B: Cover Dampening Impulse Guard (cover dampened back taps produce Jerk >= 0.44 m/s³)
+        if (currentJerk < 0.44f) {
+            return Pair(0.05f, "Subthreshold Jerk (Jerk %.2f < 0.44)".format(currentJerk))
         }
 
         // Rule C: Dominant Z-Axis Impulse Enforcement (Screen taps have X/Y shear, Back taps are Z-dominant)
