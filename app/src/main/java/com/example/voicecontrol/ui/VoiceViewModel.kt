@@ -23,8 +23,8 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel managing business logic for sub-500ms voice recognition, real-time command execution,
- * iPhone-style gesture navigation (Swipe Up, Swipe Down, Swipe Left, Swipe Right), app launching,
- * global actions, and foreground service lifecycle.
+ * text-based UI clicking ("Tap Search", "Tap Install"), iPhone-style gesture navigation,
+ * app launching, global actions, and foreground service lifecycle.
  */
 class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -281,6 +281,25 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
         speechManager.cancel()
 
         when (command) {
+            is VoiceCommand.TapElement -> {
+                val targetText = command.targetText
+                val t4_triggered = System.currentTimeMillis()
+                Log.i(PERF_TAG, "[PERF] 4. Accessibility Click Triggered: $t4_triggered ms | Target: '$targetText'")
+
+                val success = AccessibilityCommandManager.performClickByText(targetText)
+                val t5_completed = System.currentTimeMillis()
+                val totalLatency = t5_completed - t1_recognitionComplete
+
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+
+                if (success) {
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Tapped '$targetText'")
+                } else {
+                    _uiState.value = VoiceUiState.Error(
+                        message = "Could not find or click '$targetText' on current screen."
+                    )
+                }
+            }
             is VoiceCommand.SwipeGesture -> {
                 val t4_triggered = System.currentTimeMillis()
                 Log.i(PERF_TAG, "[PERF] 4. Accessibility Swipe Gesture Triggered: $t4_triggered ms | Gesture: ${command.label}")

@@ -38,6 +38,12 @@ sealed interface VoiceCommand {
     data class SwipeGesture(val type: GestureType, val label: String) : VoiceCommand
 
     /**
+     * Intent to click a UI element by text or content description ("Tap Search", "Tap Install").
+     * @param targetText Element text/description to match and click.
+     */
+    data class TapElement(val targetText: String) : VoiceCommand
+
+    /**
      * Unrecognized or unhandled voice command.
      * @param rawText Full original spoken text.
      */
@@ -50,6 +56,7 @@ sealed interface VoiceCommand {
 object CommandParser {
 
     private val OPEN_PREFIXES = listOf("open", "launch", "start", "run", "go to")
+    private val TAP_PREFIXES = listOf("tap", "click", "press", "select", "touch")
 
     /**
      * Parses a raw spoken text string and extracts the intent.
@@ -62,7 +69,17 @@ object CommandParser {
 
         val lowerText = trimmedText.lowercase(Locale.getDefault())
 
-        // 1. Check for Gesture Navigation voice commands (Swipe Up, Swipe Down, Swipe Left, Swipe Right)
+        // 1. Check for Text-Based Click voice commands ("Tap Search", "Click Settings")
+        for (prefix in TAP_PREFIXES) {
+            if (lowerText.startsWith("$prefix ")) {
+                val targetText = trimmedText.substring(prefix.length).trim()
+                if (targetText.isNotBlank()) {
+                    return VoiceCommand.TapElement(targetText)
+                }
+            }
+        }
+
+        // 2. Check for Gesture Navigation voice commands (Swipe Up, Swipe Down, Swipe Left, Swipe Right)
         when (lowerText) {
             "swipe up", "swipe upward", "upward swipe", "scroll down", "down", "page down" -> {
                 return VoiceCommand.SwipeGesture(GestureType.SWIPE_UP, "Swipe Up")
@@ -78,7 +95,7 @@ object CommandParser {
             }
         }
 
-        // 2. Check for Global Action voice commands
+        // 3. Check for Global Action voice commands
         when (lowerText) {
             "go home", "home", "go to home", "open home", "take me home" -> {
                 return VoiceCommand.GlobalAction(
@@ -100,7 +117,7 @@ object CommandParser {
             }
         }
 
-        // 3. Check for App Opening voice commands
+        // 4. Check for App Opening voice commands
         for (prefix in OPEN_PREFIXES) {
             if (lowerText.startsWith("$prefix ")) {
                 val extractedName = trimmedText.substring(prefix.length).trim()

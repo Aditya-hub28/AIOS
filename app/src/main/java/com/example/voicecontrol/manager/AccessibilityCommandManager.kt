@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Singleton manager routing global action, scroll, and gesture execution requests to the active VoiceAccessibilityService.
+ * Singleton manager routing global action, scroll, text click, and gesture execution requests to the active VoiceAccessibilityService.
  * Extensible for future accessibility features (overlay, node inspection).
  */
 object AccessibilityCommandManager {
@@ -52,6 +52,21 @@ object AccessibilityCommandManager {
             return result
         } else {
             Log.w(TAG, "Unable to execute action $action: VoiceAccessibilityService is not connected.")
+            return false
+        }
+    }
+
+    /**
+     * Finds and clicks a UI element by text or content description ("Tap Search", "Tap Install").
+     */
+    fun performClickByText(targetText: String): Boolean {
+        val service = serviceInstance
+        if (service != null) {
+            val result = service.performClickByText(targetText)
+            Log.i(TAG, "Executed performClickByText('$targetText'): $result")
+            return result
+        } else {
+            Log.w(TAG, "Unable to perform click for '$targetText': VoiceAccessibilityService is not connected.")
             return false
         }
     }

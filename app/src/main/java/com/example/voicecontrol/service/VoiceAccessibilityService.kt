@@ -9,10 +9,11 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.example.voicecontrol.manager.AccessibilityCommandManager
 import com.example.voicecontrol.manager.GestureType
+import com.example.voicecontrol.util.NodeSearchHelper
 
 /**
- * Dedicated Accessibility Service for executing Android global actions (Home, Back, Recent Apps)
- * and page-by-page controlled scrolling / gesture navigation across all apps.
+ * Dedicated Accessibility Service for executing Android global actions (Home, Back, Recent Apps),
+ * text-based UI clicking ("Tap <element name>"), and controlled gesture navigation across all apps.
  * Hardened against crashes to maintain continuous system stability.
  */
 class VoiceAccessibilityService : AccessibilityService() {
@@ -28,6 +29,21 @@ class VoiceAccessibilityService : AccessibilityService() {
             AccessibilityCommandManager.registerService(this)
         } catch (e: Exception) {
             Log.e(TAG, "Error during onServiceConnected", e)
+        }
+    }
+
+    /**
+     * Finds and clicks a UI element by text or content description ("Tap Search", "Tap Install").
+     * @param targetText Spoken element name to match and click.
+     * @return True if a matching element was found and clicked.
+     */
+    fun performClickByText(targetText: String): Boolean {
+        return try {
+            Log.i(TAG, "Executing performClickByText for target: '$targetText'")
+            NodeSearchHelper.searchAndClick(this, targetText)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error performing click by text '$targetText'", e)
+            false
         }
     }
 
