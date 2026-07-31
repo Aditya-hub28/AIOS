@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessibilityNew
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -29,6 +30,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -164,6 +166,13 @@ fun VoiceControlScreen(
         )
     }
 
+    var showDebugDashboard by remember { mutableStateOf(false) }
+
+    if (showDebugDashboard) {
+        BackTapDebugScreen(onClose = { showDebugDashboard = false })
+        return
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -173,6 +182,15 @@ fun VoiceControlScreen(
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleLarge
                     )
+                },
+                actions = {
+                    IconButton(onClick = { showDebugDashboard = true }) {
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.BugReport,
+                            contentDescription = "Back Tap Debugger",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,

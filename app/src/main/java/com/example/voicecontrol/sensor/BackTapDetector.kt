@@ -240,10 +240,20 @@ class BackTapDetector(
                     )
                 }
 
+                // Update BackTapDebugManager Repository for Jetpack Compose In-App Dashboard & Overlay
+                com.example.voicecontrol.manager.BackTapDebugManager.updateTelemetry(
+                    ax = accelX, ay = accelY, az = accelZ,
+                    lx = linX, ly = linY, lz = linZ,
+                    gx = gyroX, gy = gyroY, gz = gyroZ,
+                    mag = hpMagnitude, peak = hpMagnitude, zp = absZ, jk = jerk, gm = currentGyroMag,
+                    state = currentState.name, motion = currentMotion.name, count = tapTimestamps.size, gapMs = lastGapMs
+                )
+
                 // 5. Sensor Filters & Tap Evaluation
                 if (currentGyroMag > MAX_GYRO_ROTATION) {
                     if (hpMagnitude > 1.0f) {
                         Log.w(DEBUG_TAG, "NOISE_DETECTED: Gyro rotation too high (%.2f > %.2f)".format(currentGyroMag, MAX_GYRO_ROTATION))
+                        com.example.voicecontrol.manager.BackTapDebugManager.logEvent("NOISE [Gyro: %.2f]".format(currentGyroMag))
                     }
                     return
                 }
@@ -259,6 +269,7 @@ class BackTapDetector(
                     processTapEvent(now, hpMagnitude, jerk)
                 } else if (hpMagnitude > 0.8f && !isSharpJerk) {
                     Log.w(DEBUG_TAG, "INVALID_TAP: Impulse peak %.2f m/s² rejected (Jerk %.2f < %.2f)".format(hpMagnitude, jerk, MIN_JERK_THRESHOLD))
+                    com.example.voicecontrol.manager.BackTapDebugManager.logEvent("INVALID_TAP [Jerk: %.2f]".format(jerk))
                 }
             }
         }
@@ -289,11 +300,14 @@ class BackTapDetector(
             1 -> {
                 transitionState(BackTapDetectorState.POSSIBLE_TAP, "Tap #1 detected")
                 Log.i(DEBUG_TAG, "POSSIBLE_TAP: Tap #1 at ${currentTime}ms")
+                com.example.voicecontrol.manager.BackTapDebugManager.logEvent("POSSIBLE_TAP")
+                com.example.voicecontrol.manager.BackTapDebugManager.logEvent("VALID_TAP #1")
                 onSingleTap?.invoke()
             }
             2 -> {
                 transitionState(BackTapDetectorState.VALID_TAP, "Tap #2 detected")
                 Log.i(DEBUG_TAG, "VALID_TAP: Tap #2 at ${currentTime}ms | Gap = ${lastGapMs}ms")
+                com.example.voicecontrol.manager.BackTapDebugManager.logEvent("VALID_TAP #2 (Gap: ${lastGapMs}ms)")
                 onDoubleTap?.invoke()
             }
             3 -> {
@@ -304,7 +318,8 @@ class BackTapDetector(
                     lastDetectionTime = timestamp
                     transitionState(BackTapDetectorState.TRIPLE_TAP_DETECTED, "Triple tap sequence matched")
                     Log.i(DEBUG_TAG, "TRIPLE_TAP: Tap #3 at ${currentTime}ms | Gap = ${lastGapMs}ms")
-                    Log.i(DEBUG_TAG, "EVENT: TRIPLE_TAP MATCHED in ${duration}ms! Dumping last 500 rolling sensor samples...")
+                    com.example.voicecontrol.manager.BackTapDebugManager.logEvent("VALID_TAP #3 (Gap: ${lastGapMs}ms)")
+                    com.example.voicecontrol.manager.BackTapDebugManager.logEvent("TRIPLE_TAP")
 
                     // Requirement 8: Dump last 500 sensor samples to Logcat
                     dumpRollingBufferToLogcat("TRIPLE_TAP")
@@ -313,6 +328,7 @@ class BackTapDetector(
                     onTripleTap()
                 } else {
                     Log.w(DEBUG_TAG, "FALSE_TRIGGER: Tap #3 duration ${duration}ms exceeded ${TRIPLE_TAP_WINDOW_MS}ms window. Dumping buffer...")
+                    com.example.voicecontrol.manager.BackTapDebugManager.logEvent("FALSE_TRIGGER (Duration ${duration}ms)")
                     dumpRollingBufferToLogcat("FALSE_TRIGGER")
                     transitionState(BackTapDetectorState.IDLE, "Window expired")
                 }
