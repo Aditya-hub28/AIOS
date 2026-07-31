@@ -29,15 +29,15 @@ class BackTapDetector(
         private const val ALPHA_LOW_PASS = 0.82f
         private const val ALPHA_HIGH_PASS = 0.78f
 
-        // Detection Thresholds tuned based on real Vivo V40 Logcat empirical data (peaks 3.0 - 5.5 m/s²)
-        private const val IMPULSE_JERK_THRESHOLD = 6.5f // m/s³ linear acceleration derivative spike
-        private const val HIGH_PASS_Z_THRESHOLD = 2.5f   // m/s² Z-axis sharp impact peak
+        // Detection Thresholds tuned based on real Vivo V40 Logcat empirical data (peaks 3.5 - 6.5 m/s²)
+        private const val IMPULSE_JERK_THRESHOLD = 9.5f // m/s³ linear acceleration derivative spike
+        private const val HIGH_PASS_Z_THRESHOLD = 3.6f   // m/s² Z-axis sharp impact peak
         private const val MAX_GYRO_ROTATION_THRESHOLD = 3.5f // rad/s rotation ceiling (blocks walking/shaking)
 
         // Timing Rules
-        private const val DEBOUNCE_INTERVAL_MS = 80L // Ignore repeated sensor spikes for 80ms (allows fast consecutive taps)
+        private const val DEBOUNCE_INTERVAL_MS = 90L // Ignore repeated sensor spikes for 90ms
         private const val TRIPLE_TAP_WINDOW_MS = 1200L // 3 taps must complete within 1200ms window
-        private const val LOCKOUT_PERIOD_MS = 600L // Cool-down period after successful detection (allows quick re-triggering)
+        private const val LOCKOUT_PERIOD_MS = 2000L // 2-second cool-down post detection (blocks haptic motor vibration false triggers)
         private const val MAX_VIBRATION_SPIKES_IN_WINDOW = 4 // Vehicle vibration suppression threshold
     }
 

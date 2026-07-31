@@ -63,7 +63,20 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             com.example.voicecontrol.manager.VoiceControlManager.isVoiceControlActive.collect { active ->
                 _isVoiceControlActive.value = active
-                if (!active) {
+                if (active) {
+                    val hasPermission = ContextCompat.checkSelfPermission(
+                        app,
+                        android.Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (hasPermission) {
+                        startListening()
+                    } else {
+                        _uiState.value = VoiceUiState.Error(
+                            message = "Voice Control Active. Microphone permission required.",
+                            isPermissionError = true
+                        )
+                    }
+                } else {
                     autoRestartJob?.cancel()
                     speechManager.cancel()
                     _uiState.value = VoiceUiState.Disabled
