@@ -257,10 +257,13 @@ object CommandParser {
             }
         }
 
-        val isGridPhrase = lowerText.contains("grid") || lowerText.contains("so grid") ||
-                lowerText.contains("saw grid") || lowerText.contains("shoe grid") ||
-                lowerText.contains("sho grid") || lowerText.contains("sow grid") ||
-                lowerText.contains("show great") || lowerText.contains("show grit")
+        val isGridPhrase = lowerText.contains("grid") || lowerText.contains("grade") ||
+                lowerText.contains("greid") || lowerText.contains("great") ||
+                lowerText.contains("grit") || lowerText.contains("grd") ||
+                lowerText.contains("gred") || lowerText.contains("greed") ||
+                lowerText.contains("so grid") || lowerText.contains("saw grid") ||
+                lowerText.contains("shoe grid") || lowerText.contains("sho grid") ||
+                lowerText.contains("sow grid")
         if (!isGridPhrase) return null
 
         var extractedRows: Int? = null
