@@ -18,17 +18,17 @@ enum class BackTapDetectorState {
     IDLE,
     POSSIBLE_TAP,
     VALID_TAP,
-    TRIPLE_TAP_DETECTED
+    TRIPLE_TAP
 }
 
 /**
  * Motion Classifier Enum.
  */
 enum class MotionClassification {
-    PHONE_STILL,
-    PHONE_MOVING,
-    PHONE_SHAKING,
-    POSSIBLE_BACK_TAP
+    STILL,
+    MOVING,
+    SHAKING,
+    BACK_TAP_LIKE
 }
 
 /**
@@ -186,6 +186,8 @@ class BackTapDetector(
                     accelX = rawX; accelY = rawY; accelZ = rawZ
                 }
 
+                val startTimeNanos = SystemClock.elapsedRealtimeNanos()
+
                 // Low-pass & High-pass filtering
                 lpX = ALPHA_LOW_PASS * lpX + (1f - ALPHA_LOW_PASS) * rawX
                 lpY = ALPHA_LOW_PASS * lpY + (1f - ALPHA_LOW_PASS) * rawY
@@ -224,6 +226,10 @@ class BackTapDetector(
                 // 3. Log CSV Sample Telemetry (Requirement 2 & 7)
                 Log.d(DEBUG_TAG, sample.toCsvString())
 
+                // Compute processing latency
+                val latencyMs = ((SystemClock.elapsedRealtimeNanos() - startTimeNanos) / 1_000_000L).coerceAtLeast(1L)
+                val timeSinceLastTap = if (lastTapTime > 0) now - lastTapTime else 0L
+
                 // 4. Update Live On-Screen Debug HUD Overlay (Requirement 1)
                 if (BackTapDebugOverlay.isDebugOverlayVisible) {
                     BackTapDebugOverlay.updateTelemetry(
@@ -246,7 +252,9 @@ class BackTapDetector(
                     lx = linX, ly = linY, lz = linZ,
                     gx = gyroX, gy = gyroY, gz = gyroZ,
                     mag = hpMagnitude, peak = hpMagnitude, zp = absZ, jk = jerk, gm = currentGyroMag,
-                    state = currentState.name, motion = currentMotion.name, count = tapTimestamps.size, gapMs = lastGapMs
+                    minImp = MIN_TAP_IMPULSE, maxImp = MAX_TAP_IMPULSE, minJk = MIN_JERK_THRESHOLD, maxGy = MAX_GYRO_ROTATION,
+                    state = currentState.name, motion = currentMotion.name, count = tapTimestamps.size,
+                    timeSinceLastTap = timeSinceLastTap, latencyMs = latencyMs
                 )
 
                 // 5. Sensor Filters & Tap Evaluation
@@ -277,10 +285,10 @@ class BackTapDetector(
 
     private fun classifyMotion(mag: Float, gyro: Float, jerk: Float, absZ: Float): MotionClassification {
         return when {
-            gyro < 0.20f && mag < 0.25f -> MotionClassification.PHONE_STILL
-            gyro > 1.80f || mag > 4.50f -> MotionClassification.PHONE_SHAKING
-            (absZ in MIN_TAP_IMPULSE..MAX_TAP_IMPULSE) && jerk >= MIN_JERK_THRESHOLD -> MotionClassification.POSSIBLE_BACK_TAP
-            else -> MotionClassification.PHONE_MOVING
+            gyro < 0.20f && mag < 0.25f -> MotionClassification.STILL
+            gyro > 1.80f || mag > 4.50f -> MotionClassification.SHAKING
+            (absZ in MIN_TAP_IMPULSE..MAX_TAP_IMPULSE) && jerk >= MIN_JERK_THRESHOLD -> MotionClassification.BACK_TAP_LIKE
+            else -> MotionClassification.MOVING
         }
     }
 
@@ -316,7 +324,7 @@ class BackTapDetector(
 
                 if (duration <= TRIPLE_TAP_WINDOW_MS) {
                     lastDetectionTime = timestamp
-                    transitionState(BackTapDetectorState.TRIPLE_TAP_DETECTED, "Triple tap sequence matched")
+                    transitionState(BackTapDetectorState.TRIPLE_TAP, "Triple tap sequence matched")
                     Log.i(DEBUG_TAG, "TRIPLE_TAP: Tap #3 at ${currentTime}ms | Gap = ${lastGapMs}ms")
                     com.example.voicecontrol.manager.BackTapDebugManager.logEvent("VALID_TAP #3 (Gap: ${lastGapMs}ms)")
                     com.example.voicecontrol.manager.BackTapDebugManager.logEvent("TRIPLE_TAP")

@@ -1,8 +1,6 @@
 package com.example.voicecontrol.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,13 +19,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -39,15 +38,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.voicecontrol.manager.BackTapDebugManager
 
 /**
- * Full In-App Back Tap Developer Debug Dashboard (Jetpack Compose).
- * Displays live 15-20 FPS sensor telemetry, calculated metrics (Jerk, Z-Peak, GyroMag),
- * State Machine badge, Motion Classifier badge, Floating Overlay Mode controls,
- * and a 200-item live event log feed with a Clear Logs action button.
+ * In-App Back Tap Debug Dashboard (Jetpack Compose).
+ * Displays live sensor telemetry, calculated metrics, tap counter, performance (Hz, Latency),
+ * active state badge, motion classification badge, floating overlay switch, and 200-event log feed.
  */
 @Composable
 fun BackTapDebugScreen(
@@ -63,16 +62,16 @@ fun BackTapDebugScreen(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFF121212))
-            .padding(16.dp)
+            .padding(14.dp)
     ) {
-        // --- HEADER CARD ---
+        // --- HEADER & CONTROL CARD ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(14.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -86,8 +85,8 @@ fun BackTapDebugScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Back Tap Debugger",
-                            fontSize = 20.sp,
+                            text = "Back Tap Debug Dashboard",
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
@@ -100,7 +99,7 @@ fun BackTapDebugScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // STATE BADGE & MOTION CLASSIFICATION BADGE
                 Row(
@@ -108,52 +107,52 @@ fun BackTapDebugScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // State Badge
+                    // State Badge: IDLE, POSSIBLE_TAP, VALID_TAP, TRIPLE_TAP
                     Box(
                         modifier = Modifier
                             .background(
                                 color = when (telemetry.stateName) {
-                                    "TRIPLE_TAP_DETECTED" -> Color(0xFF00E676)
+                                    "TRIPLE_TAP" -> Color(0xFF00E676)
                                     "VALID_TAP" -> Color(0xFFFFD600)
                                     "POSSIBLE_TAP" -> Color(0xFFFF9100)
                                     else -> Color(0xFF424242)
                                 },
                                 shape = RoundedCornerShape(20.dp)
                             )
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
                         Text(
                             text = "STATE: ${telemetry.stateName}",
                             color = if (telemetry.stateName == "IDLE") Color.White else Color.Black,
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
 
-                    // Motion Badge
+                    // Motion Badge: STILL, MOVING, SHAKING, BACK_TAP_LIKE
                     Box(
                         modifier = Modifier
                             .background(
                                 color = when (telemetry.motionName) {
-                                    "POSSIBLE_BACK_TAP" -> Color(0xFF00E676)
-                                    "PHONE_STILL" -> Color(0xFF29B6F6)
-                                    "PHONE_SHAKING" -> Color(0xFFFF5252)
+                                    "BACK_TAP_LIKE" -> Color(0xFF00E676)
+                                    "STILL" -> Color(0xFF29B6F6)
+                                    "SHAKING" -> Color(0xFFFF5252)
                                     else -> Color(0xFF757575)
                                 },
                                 shape = RoundedCornerShape(20.dp)
                             )
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
                         Text(
                             text = "MOTION: ${telemetry.motionName}",
                             color = Color.White,
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // FLOATING OVERLAY TOGGLE & CLEAR LOGS ACTION
                 Row(
@@ -168,7 +167,7 @@ fun BackTapDebugScreen(
                             tint = Color.LightGray
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Floating Overlay HUD", color = Color.White, fontSize = 14.sp)
+                        Text("Floating Overlay HUD", color = Color.White, fontSize = 13.sp)
                         Spacer(modifier = Modifier.width(8.dp))
                         Switch(
                             checked = isFloatingOverlayActive,
@@ -185,32 +184,53 @@ fun BackTapDebugScreen(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Clear Logs",
                             tint = Color.White,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Clear Logs", fontSize = 12.sp)
+                        Text("Clear Logs", fontSize = 11.sp)
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // --- SENSOR METRICS PANEL ---
+        // --- TAP COUNTER & PERFORMANCE PANEL ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(14.dp)
         ) {
-            Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                MetricCell("Tap Count", "${telemetry.tapCount} / 3", isHighlight = true)
+                MetricCell("Time Since Tap", "${telemetry.timeSinceLastTapMs} ms")
+                MetricCell("Sampling Rate", "${telemetry.sensorEventsPerSec} Hz")
+                MetricCell("Latency", "${telemetry.detectionLatencyMs} ms")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // --- SENSOR METRICS & THRESHOLDS PANEL ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Text(
-                    text = "LIVE SENSOR TELEMETRY",
-                    fontSize = 12.sp,
+                    text = "SENSORS & CALCULATED METRICS",
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF00E676)
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     MetricCell("Accel X", "%.2f".format(telemetry.accelX))
@@ -218,7 +238,7 @@ fun BackTapDebugScreen(
                     MetricCell("Accel Z", "%.2f".format(telemetry.accelZ))
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     MetricCell("LinAccel X", "%.2f".format(telemetry.linX))
@@ -226,7 +246,7 @@ fun BackTapDebugScreen(
                     MetricCell("LinAccel Z", "%.2f".format(telemetry.linZ))
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     MetricCell("Gyro X", "%.2f".format(telemetry.gyroX))
@@ -234,29 +254,40 @@ fun BackTapDebugScreen(
                     MetricCell("Gyro Z", "%.2f".format(telemetry.gyroZ))
                 }
 
-                Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.DarkGray)
+                Divider(modifier = Modifier.padding(vertical = 6.dp), color = Color.DarkGray)
 
-                // CALCULATED METRICS PANEL
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    MetricCell("Magnitude", "%.2f m/s²".format(telemetry.magnitude), isHighlight = true)
-                    MetricCell("Z Peak", "%.2f m/s²".format(telemetry.zPeak), isHighlight = true)
-                    MetricCell("Jerk", "%.2f m/s³".format(telemetry.jerk), isHighlight = true)
-                    MetricCell("GyroMag", "%.2f rad/s".format(telemetry.gyroMag), isHighlight = true)
+                    MetricCell("Peak", "%.2f".format(telemetry.peak), isHighlight = true)
+                    MetricCell("Z Peak", "%.2f".format(telemetry.zPeak), isHighlight = true)
+                    MetricCell("Jerk", "%.2f".format(telemetry.jerk), isHighlight = true)
+                    MetricCell("Gyro Mag", "%.2f".format(telemetry.gyroMag), isHighlight = true)
                 }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "Active Thresholds: Imp: %.2f..%.2f | Jerk: >=%.2f | Gyro: <%.2f".format(
+                        telemetry.minImpulse, telemetry.maxImpulse, telemetry.minJerk, telemetry.maxGyro
+                    ),
+                    fontSize = 10.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // --- LIVE EVENT FEED (LAST 200 EVENTS) ---
+        // --- LIVE EVENT LOG FEED (LAST 200 EVENTS) ---
         Text(
             text = "LIVE EVENT FEED (${eventLogs.size} / 200)",
-            fontSize = 13.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = Color.LightGray
         )
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         Card(
             modifier = Modifier
@@ -270,7 +301,7 @@ fun BackTapDebugScreen(
                     Text(
                         text = "No sensor events recorded yet.\nPerform actions on device to see live logs.",
                         color = Color.Gray,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -278,11 +309,11 @@ fun BackTapDebugScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(8.dp)
+                        .padding(6.dp)
                 ) {
                     items(eventLogs) { logItem ->
                         EventLogRow(logText = logItem)
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(3.dp))
                     }
                 }
             }
@@ -293,10 +324,10 @@ fun BackTapDebugScreen(
 @Composable
 private fun MetricCell(label: String, value: String, isHighlight: Boolean = false) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = label, fontSize = 10.sp, color = Color.Gray)
+        Text(text = label, fontSize = 9.sp, color = Color.Gray)
         Text(
             text = value,
-            fontSize = 13.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = if (isHighlight) Color(0xFFFFD600) else Color.White
         )

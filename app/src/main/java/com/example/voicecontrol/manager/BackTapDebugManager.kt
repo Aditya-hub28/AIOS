@@ -11,7 +11,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Telemetry snapshot data model for in-app developer debug dashboard.
+ * Telemetry snapshot data model matching exact Back Tap Debug Dashboard specification.
  */
 data class BackTapTelemetry(
     val accelX: Float = 0f, val accelY: Float = 0f, val accelZ: Float = 0f,
@@ -22,15 +22,21 @@ data class BackTapTelemetry(
     val zPeak: Float = 0f,
     val jerk: Float = 0f,
     val gyroMag: Float = 0f,
-    val stateName: String = "IDLE",
-    val motionName: String = "PHONE_STILL",
+    val minImpulse: Float = 0.30f,
+    val maxImpulse: Float = 5.00f,
+    val minJerk: Float = 0.35f,
+    val maxGyro: Float = 1.50f,
+    val stateName: String = "IDLE",       // IDLE, POSSIBLE_TAP, VALID_TAP, TRIPLE_TAP
+    val motionName: String = "STILL",     // STILL, MOVING, SHAKING, BACK_TAP_LIKE
     val tapCount: Int = 0,
-    val lastGapMs: Long = 0L
+    val timeSinceLastTapMs: Long = 0L,
+    val sensorEventsPerSec: Int = 50,     // Sensor Events/sec (Hz)
+    val detectionLatencyMs: Long = 1      // Detection Latency (ms)
 )
 
 /**
  * Singleton repository managing real-time Back Tap telemetry, live event feeds (last 200 items),
- * floating overlay toggling, and dashboard state.
+ * floating overlay toggling, performance metrics, and dashboard state.
  */
 object BackTapDebugManager {
 
@@ -46,17 +52,31 @@ object BackTapDebugManager {
     private val timeFormatter = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
     private var lastUpdateUptime = 0L
 
+    // Performance Tracking Variables
+    private var eventCountWindow = 0
+    private var lastHzTimestamp = SystemClock.uptimeMillis()
+    private var currentHz = 50
+
     /**
-     * Updates real-time telemetry values throttled to 15-20 FPS (~50ms window) for performance.
+     * Updates real-time telemetry values throttled to ~15-20 FPS (~50ms window) for performance.
      */
     fun updateTelemetry(
         ax: Float, ay: Float, az: Float,
         lx: Float, ly: Float, lz: Float,
         gx: Float, gy: Float, gz: Float,
         mag: Float, peak: Float, zp: Float, jk: Float, gm: Float,
-        state: String, motion: String, count: Int, gapMs: Long
+        minImp: Float, maxImp: Float, minJk: Float, maxGy: Float,
+        state: String, motion: String, count: Int, timeSinceLastTap: Long, latencyMs: Long
     ) {
         val now = SystemClock.uptimeMillis()
+        eventCountWindow++
+
+        if (now - lastHzTimestamp >= 1000L) {
+            currentHz = eventCountWindow
+            eventCountWindow = 0
+            lastHzTimestamp = now
+        }
+
         if (now - lastUpdateUptime < 50L) return
         lastUpdateUptime = now
 
@@ -65,7 +85,11 @@ object BackTapDebugManager {
             linX = lx, linY = ly, linZ = lz,
             gyroX = gx, gyroY = gy, gyroZ = gz,
             magnitude = mag, peak = peak, zPeak = zp, jerk = jk, gyroMag = gm,
-            stateName = state, motionName = motion, tapCount = count, lastGapMs = gapMs
+            minImpulse = minImp, maxImpulse = maxImp, minJerk = minJk, maxGyro = maxGy,
+            stateName = state, motionName = motion, tapCount = count,
+            timeSinceLastTapMs = timeSinceLastTap,
+            sensorEventsPerSec = currentHz,
+            detectionLatencyMs = latencyMs
         )
     }
 
