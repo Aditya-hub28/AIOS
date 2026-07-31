@@ -59,9 +59,14 @@ sealed interface GrammarIntent {
     data class SwipeGesture(val type: GestureType, val label: String) : GrammarIntent
 
     /**
-     * Intent for Grid or Number Overlay interaction.
+     * Intent for Grid or Number Overlay interaction with optional dynamic rows and columns.
      */
-    data class GridAction(val type: GridActionType, val badgeNumber: Int? = null) : GrammarIntent
+    data class GridAction(
+        val type: GridActionType,
+        val badgeNumber: Int? = null,
+        val customRows: Int? = null,
+        val customCols: Int? = null
+    ) : GrammarIntent
 
     /**
      * Debug intent to log all discovered launchable applications to Logcat under VOICE_APPS.

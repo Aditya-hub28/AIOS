@@ -6,17 +6,27 @@ import android.graphics.Path
 import android.util.Log
 
 /**
- * Controller processing 6x6 grid overlay commands (Show Grid, Hide Grid, Reset Grid, Click Here, Tap Cell 1..36).
+ * Controller processing dynamic grid overlay commands (Show Grid, Hide Grid, Reset Grid, Click Here, Tap Cell).
  */
 object GridCommandProcessor {
 
     private const val TAG = "GridCommandProcessor"
 
     /**
-     * Shows initial full-screen 6x6 grid overlay.
+     * Shows initial or dynamic grid overlay with optional rows/columns parameters.
      */
-    fun showGrid(service: AccessibilityService): Boolean {
-        GridOverlayManager.showGrid(service)
+    fun showGrid(
+        service: AccessibilityService,
+        customRows: Int? = null,
+        customCols: Int? = null,
+        rawCommand: String = "show grid"
+    ): Boolean {
+        if (GridOverlayManager.isGridVisible()) {
+            GridStateManager.configureGrid(customRows, customCols, rawCommand)
+            GridOverlayManager.updateGrid(animate = true)
+        } else {
+            GridOverlayManager.showGrid(service, customRows, customCols, rawCommand)
+        }
         return true
     }
 
@@ -29,18 +39,17 @@ object GridCommandProcessor {
     }
 
     /**
-     * Resets grid zoom to full screen layout.
+     * Resets grid zoom to full screen layout and resets configuration to default 6x6.
      */
-    fun resetGrid(): Boolean {
+    fun resetGrid(rawCommand: String = "reset grid"): Boolean {
         if (!GridOverlayManager.isGridVisible()) return false
-        GridStateManager.resetGrid()
+        GridStateManager.resetGrid(rawCommand)
         GridOverlayManager.updateGrid(animate = true)
-        Log.i(TAG, "Reset grid to initial full screen layout.")
         return true
     }
 
     /**
-     * Zooms into selected 6x6 cell (1..36) or clicks center if max zoom depth reached.
+     * Zooms into selected cell (1..totalCells) or clicks center if max zoom depth reached.
      */
     fun selectCell(service: AccessibilityService, cellNumber: Int): Boolean {
         if (!GridOverlayManager.isGridVisible()) {
@@ -61,7 +70,6 @@ object GridCommandProcessor {
             // Recursively zoom into selected cell region
             GridStateManager.zoomIntoCell(cellNumber)
             GridOverlayManager.updateGrid(animate = true)
-            Log.i(TAG, "Selected cell #$cellNumber -> Zoom depth ${GridStateManager.zoomDepth}")
             return true
         }
     }

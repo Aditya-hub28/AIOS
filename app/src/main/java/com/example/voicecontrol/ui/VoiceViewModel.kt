@@ -281,18 +281,20 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
         speechManager.cancel()
 
         when (command) {
-            VoiceCommand.ShowGrid -> {
+            is VoiceCommand.ShowGrid -> {
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] 4. Show Grid Triggered: $t4_triggered ms")
+                Log.i(PERF_TAG, "[PERF] 4. Show Grid Triggered: $t4_triggered ms | Rows: ${command.customRows}, Cols: ${command.customCols}")
 
-                val success = AccessibilityCommandManager.showGrid()
+                val success = AccessibilityCommandManager.showGrid(command.customRows, command.customCols, currentText)
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
                 Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (success) {
-                    _uiState.value = VoiceUiState.Success(recognizedText = "Showing 3x3 Grid")
+                    val r = com.example.voicecontrol.grid.GridStateManager.rows
+                    val c = com.example.voicecontrol.grid.GridStateManager.cols
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Showing ${r}x${c} Grid")
                 } else {
                     _uiState.value = VoiceUiState.Error(message = "Unable to show Grid Overlay. Ensure Accessibility Service is enabled.")
                 }

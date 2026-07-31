@@ -39,7 +39,8 @@ class VoiceAccessibilityService : AccessibilityService() {
     }
 
     // --- GRID OVERLAY SYSTEM METHODS ---
-    fun showGrid(): Boolean = GridCommandProcessor.showGrid(this)
+    fun showGrid(customRows: Int? = null, customCols: Int? = null, rawCommand: String = "show grid"): Boolean =
+        GridCommandProcessor.showGrid(this, customRows, customCols, rawCommand)
     fun hideGrid(): Boolean = GridCommandProcessor.hideGrid()
     fun resetGrid(): Boolean = GridCommandProcessor.resetGrid()
     fun clickHere(): Boolean = GridCommandProcessor.clickHere(this)

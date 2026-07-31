@@ -41,7 +41,8 @@ object AccessibilityCommandManager {
     }
 
     // --- GRID OVERLAY SYSTEM METHODS ---
-    fun showGrid(): Boolean = serviceInstance?.showGrid() ?: false
+    fun showGrid(customRows: Int? = null, customCols: Int? = null, rawCommand: String = "show grid"): Boolean =
+        serviceInstance?.showGrid(customRows, customCols, rawCommand) ?: false
     fun hideGrid(): Boolean = serviceInstance?.hideGrid() ?: false
     fun resetGrid(): Boolean = serviceInstance?.resetGrid() ?: false
     fun clickHere(): Boolean = serviceInstance?.clickHere() ?: false

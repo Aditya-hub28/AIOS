@@ -122,47 +122,48 @@ class CommandGrammarEngine(private val context: Context) {
         }
 
         // --- 2. GRID COMMANDS ---
-        when (lowerText) {
-            "show grid", "show the grid", "display grid", "grid on", "open grid" -> {
-                val result = GrammarResult(
-                    intent = GrammarIntent.GridAction(GridActionType.SHOW_GRID),
-                    category = GrammarCategory.GRID_COMMAND,
-                    matchedPhrase = lowerText,
-                    confidence = 1.0f
-                )
-                logGrammarReport(rawText, normalizedText, result)
-                return result
-            }
-            "hide grid", "hide the grid", "remove grid", "grid off", "close grid" -> {
-                val result = GrammarResult(
-                    intent = GrammarIntent.GridAction(GridActionType.HIDE_GRID),
-                    category = GrammarCategory.GRID_COMMAND,
-                    matchedPhrase = lowerText,
-                    confidence = 1.0f
-                )
-                logGrammarReport(rawText, normalizedText, result)
-                return result
-            }
-            "reset grid", "reset the grid", "clear grid zoom", "full grid" -> {
-                val result = GrammarResult(
-                    intent = GrammarIntent.GridAction(GridActionType.RESET_GRID),
-                    category = GrammarCategory.GRID_COMMAND,
-                    matchedPhrase = lowerText,
-                    confidence = 1.0f
-                )
-                logGrammarReport(rawText, normalizedText, result)
-                return result
-            }
-            "click here", "press here", "tap here" -> {
-                val result = GrammarResult(
-                    intent = GrammarIntent.GridAction(GridActionType.CLICK_HERE),
-                    category = GrammarCategory.GRID_COMMAND,
-                    matchedPhrase = lowerText,
-                    confidence = 1.0f
-                )
-                logGrammarReport(rawText, normalizedText, result)
-                return result
-            }
+        val parsedCmd = CommandParser.parse(rawText)
+        if (parsedCmd is VoiceCommand.ShowGrid) {
+            val result = GrammarResult(
+                intent = GrammarIntent.GridAction(
+                    type = GridActionType.SHOW_GRID,
+                    customRows = parsedCmd.customRows,
+                    customCols = parsedCmd.customCols
+                ),
+                category = GrammarCategory.GRID_COMMAND,
+                matchedPhrase = lowerText,
+                confidence = 1.0f
+            )
+            logGrammarReport(rawText, normalizedText, result)
+            return result
+        } else if (parsedCmd is VoiceCommand.HideGrid) {
+            val result = GrammarResult(
+                intent = GrammarIntent.GridAction(type = GridActionType.HIDE_GRID),
+                category = GrammarCategory.GRID_COMMAND,
+                matchedPhrase = lowerText,
+                confidence = 1.0f
+            )
+            logGrammarReport(rawText, normalizedText, result)
+            return result
+        } else if (parsedCmd is VoiceCommand.ResetGrid) {
+            val result = GrammarResult(
+                intent = GrammarIntent.GridAction(type = GridActionType.RESET_GRID),
+                category = GrammarCategory.GRID_COMMAND,
+                matchedPhrase = lowerText,
+                confidence = 1.0f
+            )
+            logGrammarReport(rawText, normalizedText, result)
+            return result
+        } else if (parsedCmd is VoiceCommand.ClickHere) {
+            val result = GrammarResult(
+                intent = GrammarIntent.GridAction(type = GridActionType.CLICK_HERE),
+                category = GrammarCategory.GRID_COMMAND,
+                matchedPhrase = lowerText,
+                confidence = 1.0f
+            )
+            logGrammarReport(rawText, normalizedText, result)
+            return result
+        }
             "show numbers", "show number", "display numbers", "numbers on", "show badge numbers" -> {
                 val result = GrammarResult(
                     intent = GrammarIntent.GridAction(GridActionType.SHOW_NUMBERS),

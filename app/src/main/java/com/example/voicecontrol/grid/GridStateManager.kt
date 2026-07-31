@@ -5,15 +5,14 @@ import android.graphics.RectF
 import android.util.Log
 
 /**
- * Singleton managing active screen bounds, 6x6 (36 cells) region subdivision, and recursive zoom depth.
+ * Singleton managing active screen bounds, dynamic grid dimensions (rows × cols), and recursive zoom depth.
  */
 object GridStateManager {
 
-    private const val TAG = "GridStateManager"
+    private const val TAG = "GRID"
 
-    const val GRID_ROWS = 6
-    const val GRID_COLS = 6
-    const val TOTAL_CELLS = 36
+    const val DEFAULT_ROWS = 6
+    const val DEFAULT_COLS = 6
     const val MAX_ZOOM_DEPTH = 2
 
     var isGridActive: Boolean = false
@@ -22,29 +21,58 @@ object GridStateManager {
     var zoomDepth: Int = 0
         private set
 
+    var rows: Int = DEFAULT_ROWS
+        private set
+
+    var cols: Int = DEFAULT_COLS
+        private set
+
+    val totalCells: Int
+        get() = rows * cols
+
     private var initialScreenBounds: RectF = RectF()
     var currentBounds: RectF = RectF()
         private set
 
     /**
-     * Initializes grid state with current screen resolution dimensions.
+     * Updates rows and columns configuration while maintaining values for unsupplied parameters.
      */
-    fun initGrid(screenWidth: Float, screenHeight: Float) {
+    fun configureGrid(newRows: Int? = null, newCols: Int? = null, rawCommand: String = "configure grid") {
+        if (newRows != null && newRows > 0) {
+            rows = newRows.coerceIn(1, 20)
+        }
+        if (newCols != null && newCols > 0) {
+            cols = newCols.coerceIn(1, 20)
+        }
+        logGridState(rawCommand)
+    }
+
+    /**
+     * Initializes grid state with current screen resolution dimensions and optional custom dimensions.
+     */
+    fun initGrid(screenWidth: Float, screenHeight: Float, newRows: Int? = null, newCols: Int? = null, rawCommand: String = "init grid") {
         initialScreenBounds = RectF(0f, 0f, screenWidth, screenHeight)
         currentBounds = RectF(initialScreenBounds)
         zoomDepth = 0
         isGridActive = true
-        Log.i(TAG, "6x6 Grid initialized: ${screenWidth.toInt()}x${screenHeight.toInt()}")
+
+        if (newRows != null || newCols != null) {
+            if (newRows != null && newRows > 0) rows = newRows.coerceIn(1, 20)
+            if (newCols != null && newCols > 0) cols = newCols.coerceIn(1, 20)
+        }
+        logGridState(rawCommand)
     }
 
     /**
-     * Resets grid zoom back to full screen.
+     * Resets grid zoom back to full screen AND resets configuration to default 6x6.
      */
-    fun resetGrid() {
+    fun resetGrid(rawCommand: String = "reset grid") {
         if (!isGridActive) return
         currentBounds = RectF(initialScreenBounds)
         zoomDepth = 0
-        Log.i(TAG, "Grid reset to full screen bounds.")
+        rows = DEFAULT_ROWS
+        cols = DEFAULT_COLS
+        logGridState(rawCommand)
     }
 
     /**
@@ -54,19 +82,19 @@ object GridStateManager {
         isGridActive = false
         zoomDepth = 0
         currentBounds = RectF()
-        Log.i(TAG, "Grid deactivated.")
+        Log.i(TAG, "GRID:\nRows: $rows\nColumns: $cols\nCommand: deactivateGrid")
     }
 
     /**
-     * Calculates the bounding RectF for cell number 1..36 inside current bounds.
+     * Calculates the bounding RectF for cell number 1..totalCells inside current bounds.
      */
     fun getCellBounds(cellNumber: Int): RectF {
-        val number = cellNumber.coerceIn(1, TOTAL_CELLS)
-        val row = (number - 1) / GRID_ROWS
-        val col = (number - 1) % GRID_COLS
+        val number = cellNumber.coerceIn(1, totalCells)
+        val row = (number - 1) / cols
+        val col = (number - 1) % cols
 
-        val cellWidth = currentBounds.width() / GRID_COLS.toFloat()
-        val cellHeight = currentBounds.height() / GRID_ROWS.toFloat()
+        val cellWidth = currentBounds.width() / cols.toFloat()
+        val cellHeight = currentBounds.height() / rows.toFloat()
 
         val left = currentBounds.left + (col * cellWidth)
         val top = currentBounds.top + (row * cellHeight)
@@ -77,13 +105,13 @@ object GridStateManager {
     }
 
     /**
-     * Zooms grid into selected sub-cell region (1..36).
+     * Zooms grid into selected sub-cell region (1..totalCells).
      */
     fun zoomIntoCell(cellNumber: Int): RectF {
         val selectedBounds = getCellBounds(cellNumber)
         currentBounds = selectedBounds
         zoomDepth++
-        Log.i(TAG, "Zoomed into cell #$cellNumber (Depth=$zoomDepth): $currentBounds")
+        logGridState("zoomIntoCell #$cellNumber (Depth=$zoomDepth)")
         return currentBounds
     }
 
@@ -92,5 +120,12 @@ object GridStateManager {
      */
     fun getCenterCoordinate(): PointF {
         return PointF(currentBounds.centerX(), currentBounds.centerY())
+    }
+
+    /**
+     * Logs current grid configuration strictly formatted per requirement 10.
+     */
+    fun logGridState(command: String) {
+        Log.i(TAG, "GRID:\nRows:\n$rows\nColumns:\n$cols\nCommand:\n$command")
     }
 }

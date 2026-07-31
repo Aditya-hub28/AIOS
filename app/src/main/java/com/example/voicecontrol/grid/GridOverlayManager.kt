@@ -18,7 +18,7 @@ import android.view.animation.FastOutSlowInInterpolator
 import kotlin.math.min
 
 /**
- * Manager handling rendering and animated updates of full-screen 6x6 (36 cells) Grid Overlay via WindowManager.
+ * Manager handling rendering and animated updates of dynamic Grid Overlay via WindowManager.
  */
 object GridOverlayManager {
 
@@ -28,7 +28,7 @@ object GridOverlayManager {
     private var gridCanvasView: GridCanvasView? = null
 
     /**
-     * Custom Canvas View rendering iPhone Voice Control style 6x6 grid lines, animated transitions, and numbers (1..36).
+     * Custom Canvas View rendering iPhone Voice Control style dynamic grid lines, animated transitions, and cell numbers.
      */
     private class GridCanvasView(context: Context) : View(context) {
 
@@ -60,7 +60,7 @@ object GridOverlayManager {
 
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 24f
+            textSize = 22f
             textAlign = Paint.Align.CENTER
             isFakeBoldText = true
         }
@@ -101,30 +101,30 @@ object GridOverlayManager {
             val bounds = animatedBounds
             if (bounds.width() <= 0 || bounds.height() <= 0) return
 
-            val cols = GridStateManager.GRID_COLS
-            val rows = GridStateManager.GRID_ROWS
+            val cols = GridStateManager.cols
+            val rows = GridStateManager.rows
             val cellW = bounds.width() / cols.toFloat()
             val cellH = bounds.height() / rows.toFloat()
 
             // 1. Draw outer boundary box around active region
             canvas.drawRect(bounds, borderPaint)
 
-            // 2. Draw 5 vertical grid lines
+            // 2. Draw vertical grid lines
             for (col in 1 until cols) {
                 val x = bounds.left + (col * cellW)
                 canvas.drawLine(x, bounds.top, x, bounds.bottom, gridLinePaint)
             }
 
-            // 3. Draw 5 horizontal grid lines
+            // 3. Draw horizontal grid lines
             for (row in 1 until rows) {
                 val y = bounds.top + (row * cellH)
                 canvas.drawLine(bounds.left, y, bounds.right, y, gridLinePaint)
             }
 
-            // 4. Draw 36 cell number badges (1..36) at center of each cell
+            // 4. Draw cell number badges (1..totalCells) at center of each cell
             val minDim = min(cellW, cellH)
-            val badgeRadius = (minDim * 0.28f).coerceIn(12f, 24f)
-            val fontSize = (badgeRadius * 1.1f).coerceIn(12f, 22f)
+            val badgeRadius = (minDim * 0.28f).coerceIn(10f, 24f)
+            val fontSize = (badgeRadius * 1.1f).coerceIn(10f, 22f)
             textPaint.textSize = fontSize
 
             val textOffset = (textPaint.descent() + textPaint.ascent()) / 2f
@@ -139,7 +139,7 @@ object GridOverlayManager {
                     canvas.drawCircle(centerX, centerY, badgeRadius, badgeBgPaint)
                     canvas.drawCircle(centerX, centerY, badgeRadius, badgeBorderPaint)
 
-                    // Draw text number (1..36)
+                    // Draw text number (1..totalCells)
                     canvas.drawText(number.toString(), centerX, centerY - textOffset, textPaint)
 
                     number++
@@ -149,15 +149,15 @@ object GridOverlayManager {
     }
 
     /**
-     * Displays the 6x6 grid overlay window.
+     * Displays the dynamic grid overlay window.
      */
-    fun showGrid(service: AccessibilityService) {
+    fun showGrid(service: AccessibilityService, customRows: Int? = null, customCols: Int? = null, rawCommand: String = "show grid") {
         try {
             val metrics: DisplayMetrics = service.resources.displayMetrics
             val width = metrics.widthPixels.toFloat()
             val height = metrics.heightPixels.toFloat()
 
-            GridStateManager.initGrid(width, height)
+            GridStateManager.initGrid(width, height, customRows, customCols, rawCommand)
 
             val wm = service.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
             windowManager = wm
@@ -190,14 +190,14 @@ object GridOverlayManager {
             wm.addView(view, params)
             gridCanvasView = view
             view.updateBoundsAnimated(GridStateManager.currentBounds, animate = false)
-            Log.i(TAG, "6x6 Grid overlay window successfully added.")
+            Log.i(TAG, "Dynamic Grid overlay window successfully added.")
         } catch (e: Exception) {
-            Log.e(TAG, "Error displaying 6x6 grid overlay", e)
+            Log.e(TAG, "Error displaying dynamic grid overlay", e)
         }
     }
 
     /**
-     * Updates and animates grid bounds after zooming or resetting.
+     * Updates and animates grid bounds after zooming, configuration changes, or resetting.
      */
     fun updateGrid(animate: Boolean = true) {
         gridCanvasView?.updateBoundsAnimated(GridStateManager.currentBounds, animate = animate)

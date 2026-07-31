@@ -60,17 +60,17 @@ sealed interface VoiceCommand {
     data class TapNumber(val number: Int) : VoiceCommand
 
     /**
-     * Intent to display full-screen 3x3 Grid Overlay.
+     * Intent to display or configure dynamic Grid Overlay (optional customRows, customCols).
      */
-    object ShowGrid : VoiceCommand
+    data class ShowGrid(val customRows: Int? = null, val customCols: Int? = null) : VoiceCommand
 
     /**
-     * Intent to hide full-screen 3x3 Grid Overlay.
+     * Intent to hide Grid Overlay.
      */
     object HideGrid : VoiceCommand
 
     /**
-     * Intent to reset Grid Overlay zoom level.
+     * Intent to reset Grid Overlay zoom level and configuration.
      */
     object ResetGrid : VoiceCommand
 
@@ -88,7 +88,7 @@ sealed interface VoiceCommand {
 
 /**
  * CommandParser parses recognized text into structured VoiceCommand instances.
- * Includes extensive fuzzy speech variations for Show Grid ("so grid", "saw grid", "shoe grid", "show grit").
+ * Supports dynamic grid overlay sizing ("show grid with 7 rows", "show grid with 9 columns").
  */
 object CommandParser {
 
@@ -106,6 +106,11 @@ object CommandParser {
         "first" to 1, "second" to 2, "third" to 3, "fourth" to 4, "fifth" to 5
     )
 
+    private val TENS_MAP = mapOf(
+        "twenty" to 20, "thirty" to 30, "forty" to 40, "fourty" to 40,
+        "fifty" to 50, "sixty" to 60, "seventy" to 70, "eighty" to 80, "ninety" to 90
+    )
+
     /**
      * Parses a raw spoken text string and extracts the intent.
      */
@@ -117,26 +122,13 @@ object CommandParser {
 
         val lowerText = trimmedText.lowercase(Locale.getDefault())
 
-        // 1. Check for Grid Overlay commands (including phonetic fuzzy variations: "so grid", "saw grid", "shoe grid", "show grit", "sure grid")
-        when (lowerText) {
-            "show grid", "show the grid", "display grid", "grid on", "open grid",
-            "so grid", "saw grid", "shoe grid", "sho grid", "sow grid", "show great", "show grit", "show gre", "show gridd", "show gridr", "show the greid", "show grd", "so great", "so grit", "show red", "so red", "sure grid" -> {
-                return VoiceCommand.ShowGrid
-            }
-            "hide grid", "hide the grid", "remove grid", "grid off", "close grid",
-            "hi grid", "height grid", "high grid", "hide great", "hide grit" -> {
-                return VoiceCommand.HideGrid
-            }
-            "reset grid", "reset the grid", "clear grid zoom", "full grid",
-            "re set grid", "recet grid", "reset great" -> {
-                return VoiceCommand.ResetGrid
-            }
-            "click here", "press here", "tap here" -> {
-                return VoiceCommand.ClickHere
-            }
+        // 1. Check for Dynamic Grid Overlay commands
+        val gridCmd = parseDynamicGridCommand(lowerText)
+        if (gridCmd != null) {
+            return gridCmd
         }
 
-        // 2. Check for Show Numbers / Hide Numbers voice commands (including "so numbers", "saw numbers")
+        // 2. Check for Show Numbers / Hide Numbers voice commands
         when (lowerText) {
             "show numbers", "show number", "display numbers", "numbers on", "show badge numbers",
             "so numbers", "so number", "saw numbers", "shoe numbers" -> {
@@ -148,7 +140,7 @@ object CommandParser {
             }
         }
 
-        // 3. Check for Tap Number / Grid Cell voice commands ("Tap 5", "Tap number 5", "Click 12", or pure digits "5")
+        // 3. Check for Tap Number / Grid Cell voice commands ("Tap 5", "Tap 17", "22", "five")
         val numberFromTap = parseTapNumberCommand(lowerText, trimmedText)
         if (numberFromTap != null) {
             return VoiceCommand.TapNumber(numberFromTap)
@@ -164,7 +156,7 @@ object CommandParser {
             }
         }
 
-        // 5. Check for Gesture Navigation voice commands (Swipe Up, Swipe Down, Swipe Left, Swipe Right)
+        // 5. Check for Gesture Navigation voice commands
         when (lowerText) {
             "swipe up", "swipe upward", "upward swipe", "scroll down", "down", "page down" -> {
                 return VoiceCommand.SwipeGesture(GestureType.SWIPE_UP, "Swipe Up")
@@ -217,12 +209,89 @@ object CommandParser {
     }
 
     /**
-     * Helper to parse integer digits or spoken number words ("one" -> 1, "two" -> 2, etc.).
+     * Helper to parse integer digits or spoken number words ("one" -> 1, "twenty five" -> 25, etc.).
      */
-    private fun parseSpokenNumber(text: String): Int? {
-        val trimmed = text.trim()
+    fun parseSpokenNumber(text: String): Int? {
+        val trimmed = text.trim().lowercase(Locale.getDefault())
         trimmed.toIntOrNull()?.let { return it }
-        return SPOKEN_NUMBER_MAP[trimmed.lowercase(Locale.getDefault())]
+
+        SPOKEN_NUMBER_MAP[trimmed]?.let { return it }
+        TENS_MAP[trimmed]?.let { return it }
+
+        val parts = trimmed.split(Regex("[\\s-]+"))
+        if (parts.size == 2) {
+            val ten = TENS_MAP[parts[0]]
+            val unit = SPOKEN_NUMBER_MAP[parts[1]]
+            if (ten != null && unit != null) {
+                return ten + unit
+            }
+        }
+
+        return null
+    }
+
+    /**
+     * Parses dynamic grid phrases such as "show grid with 7 rows", "show grid with 9 columns", "change grid to 8 rows".
+     */
+    private fun parseDynamicGridCommand(lowerText: String): VoiceCommand? {
+        when (lowerText) {
+            "hide grid", "hide the grid", "remove grid", "grid off", "close grid",
+            "hi grid", "height grid", "high grid", "hide great", "hide grit" -> {
+                return VoiceCommand.HideGrid
+            }
+            "reset grid", "reset the grid", "clear grid zoom", "full grid",
+            "re set grid", "recet grid", "reset great" -> {
+                return VoiceCommand.ResetGrid
+            }
+            "click here", "press here", "tap here" -> {
+                return VoiceCommand.ClickHere
+            }
+        }
+
+        val isGridPhrase = lowerText.contains("grid") || lowerText.contains("so grid") ||
+                lowerText.contains("saw grid") || lowerText.contains("shoe grid")
+        if (!isGridPhrase) return null
+
+        var extractedRows: Int? = null
+        var extractedCols: Int? = null
+
+        // Check for "X rows" or "row X"
+        val rowRegex = Regex("""(\d+|[a-z]+)\s+(?:rows?|row)""")
+        val rowMatch = rowRegex.find(lowerText)
+        if (rowMatch != null) {
+            extractedRows = parseSpokenNumber(rowMatch.groupValues[1])
+        } else {
+            val rowRegexAlt = Regex("""(?:rows?|row)\s+(\d+|[a-z]+)""")
+            val rowMatchAlt = rowRegexAlt.find(lowerText)
+            if (rowMatchAlt != null) {
+                extractedRows = parseSpokenNumber(rowMatchAlt.groupValues[1])
+            }
+        }
+
+        // Check for "X columns" or "column X" or "cols"
+        val colRegex = Regex("""(\d+|[a-z]+)\s+(?:columns?|column|cols?|col)""")
+        val colMatch = colRegex.find(lowerText)
+        if (colMatch != null) {
+            extractedCols = parseSpokenNumber(colMatch.groupValues[1])
+        } else {
+            val colRegexAlt = Regex("""(?:columns?|column|cols?|col)\s+(\d+|[a-z]+)""")
+            val colMatchAlt = colRegexAlt.find(lowerText)
+            if (colMatchAlt != null) {
+                extractedCols = parseSpokenNumber(colMatchAlt.groupValues[1])
+            }
+        }
+
+        // Check for "X by Y" (e.g. "grid 7 by 9")
+        if (extractedRows == null && extractedCols == null) {
+            val byRegex = Regex("""(\d+|[a-z]+)\s+by\s+(\d+|[a-z]+)""")
+            val byMatch = byRegex.find(lowerText)
+            if (byMatch != null) {
+                extractedRows = parseSpokenNumber(byMatch.groupValues[1])
+                extractedCols = parseSpokenNumber(byMatch.groupValues[2])
+            }
+        }
+
+        return VoiceCommand.ShowGrid(customRows = extractedRows, customCols = extractedCols)
     }
 
     /**
