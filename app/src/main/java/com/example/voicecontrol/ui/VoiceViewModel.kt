@@ -23,8 +23,8 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel managing business logic for sub-500ms voice recognition, real-time command execution,
- * iPhone-style number overlays ("Show Numbers", "Tap 5"), text-based UI clicking ("Tap Search"),
- * gesture navigation, app launching, global actions, and foreground service lifecycle.
+ * 3x3 Grid Overlay progressive zoom ("Show Grid", "Click Here"), number overlays ("Show Numbers"),
+ * text-based UI clicking ("Tap Search"), gesture navigation, app launching, global actions, and service lifecycle.
  */
 class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -281,6 +281,66 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
         speechManager.cancel()
 
         when (command) {
+            VoiceCommand.ShowGrid -> {
+                val t4_triggered = System.currentTimeMillis()
+                Log.i(PERF_TAG, "[PERF] 4. Show Grid Triggered: $t4_triggered ms")
+
+                val success = AccessibilityCommandManager.showGrid()
+                val t5_completed = System.currentTimeMillis()
+                val totalLatency = t5_completed - t1_recognitionComplete
+
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+
+                if (success) {
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Showing 3x3 Grid")
+                } else {
+                    _uiState.value = VoiceUiState.Error(message = "Unable to show Grid Overlay. Ensure Accessibility Service is enabled.")
+                }
+            }
+            VoiceCommand.HideGrid -> {
+                val t4_triggered = System.currentTimeMillis()
+                Log.i(PERF_TAG, "[PERF] 4. Hide Grid Triggered: $t4_triggered ms")
+
+                val success = AccessibilityCommandManager.hideGrid()
+                val t5_completed = System.currentTimeMillis()
+                val totalLatency = t5_completed - t1_recognitionComplete
+
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+
+                if (success) {
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Grid Overlay Hidden")
+                }
+            }
+            VoiceCommand.ResetGrid -> {
+                val t4_triggered = System.currentTimeMillis()
+                Log.i(PERF_TAG, "[PERF] 4. Reset Grid Triggered: $t4_triggered ms")
+
+                val success = AccessibilityCommandManager.resetGrid()
+                val t5_completed = System.currentTimeMillis()
+                val totalLatency = t5_completed - t1_recognitionComplete
+
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+
+                if (success) {
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Grid Reset")
+                }
+            }
+            VoiceCommand.ClickHere -> {
+                val t4_triggered = System.currentTimeMillis()
+                Log.i(PERF_TAG, "[PERF] 4. Click Here Triggered: $t4_triggered ms")
+
+                val success = AccessibilityCommandManager.clickHere()
+                val t5_completed = System.currentTimeMillis()
+                val totalLatency = t5_completed - t1_recognitionComplete
+
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+
+                if (success) {
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Clicked Selected Area")
+                } else {
+                    _uiState.value = VoiceUiState.Error(message = "Grid Overlay is not active.")
+                }
+            }
             VoiceCommand.ShowNumbers -> {
                 val t4_triggered = System.currentTimeMillis()
                 Log.i(PERF_TAG, "[PERF] 4. Show Numbers Triggered: $t4_triggered ms")
@@ -314,7 +374,7 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             is VoiceCommand.TapNumber -> {
                 val num = command.number
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] 4. Tap Number Triggered: $t4_triggered ms | Number: $num")
+                Log.i(PERF_TAG, "[PERF] 4. Tap Number/Cell Triggered: $t4_triggered ms | Number: $num")
 
                 val success = AccessibilityCommandManager.tapNumber(num)
                 val t5_completed = System.currentTimeMillis()
@@ -323,9 +383,9 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
                 Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (success) {
-                    _uiState.value = VoiceUiState.Success(recognizedText = "Tapped #$num")
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Selected #$num")
                 } else {
-                    _uiState.value = VoiceUiState.Error(message = "Number #$num is not available on current screen.")
+                    _uiState.value = VoiceUiState.Error(message = "Number #$num is not available.")
                 }
             }
             is VoiceCommand.TapElement -> {

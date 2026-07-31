@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Singleton manager routing global action, scroll, text click, overlay, and gesture execution requests to the active VoiceAccessibilityService.
- * Extensible for future accessibility features (grid overlay, OCR, AI agent).
+ * Singleton manager routing global action, scroll, text click, overlay, grid, and gesture execution requests to the active VoiceAccessibilityService.
+ * Extensible for future accessibility features (OCR, AI agent).
  */
 object AccessibilityCommandManager {
 
@@ -39,6 +39,13 @@ object AccessibilityCommandManager {
         _isServiceConnected.value = false
         Log.i(TAG, "VoiceAccessibilityService unregistered.")
     }
+
+    // --- GRID OVERLAY SYSTEM METHODS ---
+    fun showGrid(): Boolean = serviceInstance?.showGrid() ?: false
+    fun hideGrid(): Boolean = serviceInstance?.hideGrid() ?: false
+    fun resetGrid(): Boolean = serviceInstance?.resetGrid() ?: false
+    fun clickHere(): Boolean = serviceInstance?.clickHere() ?: false
+    fun selectGridCell(cellNumber: Int): Boolean = serviceInstance?.selectGridCell(cellNumber) ?: false
 
     /**
      * Displays number badge overlays over all clickable UI elements on screen.

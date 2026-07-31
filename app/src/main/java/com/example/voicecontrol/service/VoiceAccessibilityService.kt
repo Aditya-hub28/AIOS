@@ -7,6 +7,8 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.example.voicecontrol.grid.GridCommandProcessor
+import com.example.voicecontrol.grid.GridOverlayManager
 import com.example.voicecontrol.manager.AccessibilityCommandManager
 import com.example.voicecontrol.manager.GestureType
 import com.example.voicecontrol.overlay.NodeMappingManager
@@ -16,6 +18,7 @@ import com.example.voicecontrol.util.NodeSearchHelper
 /**
  * Dedicated Accessibility Service for executing Android global actions (Home, Back, Recent Apps),
  * text-based UI clicking ("Tap <element name>"), iPhone-style number overlays ("Show Numbers", "Tap 5"),
+ * 3x3 Grid Overlay progressive zoom navigation ("Show Grid", "Click Here"),
  * and controlled gesture navigation across all apps.
  * Hardened against crashes to maintain continuous system stability.
  */
@@ -34,6 +37,13 @@ class VoiceAccessibilityService : AccessibilityService() {
             Log.e(TAG, "Error during onServiceConnected", e)
         }
     }
+
+    // --- GRID OVERLAY SYSTEM METHODS ---
+    fun showGrid(): Boolean = GridCommandProcessor.showGrid(this)
+    fun hideGrid(): Boolean = GridCommandProcessor.hideGrid()
+    fun resetGrid(): Boolean = GridCommandProcessor.resetGrid()
+    fun clickHere(): Boolean = GridCommandProcessor.clickHere(this)
+    fun selectGridCell(cellNumber: Int): Boolean = GridCommandProcessor.selectCell(this, cellNumber)
 
     /**
      * Scans active screen and displays number badge overlays over all clickable elements.
@@ -69,6 +79,11 @@ class VoiceAccessibilityService : AccessibilityService() {
      */
     fun tapNumber(number: Int): Boolean {
         return try {
+            // Check if Grid Overlay is active first
+            if (GridOverlayManager.isGridVisible() && number in 1..9) {
+                return selectGridCell(number)
+            }
+
             val target = NodeMappingManager.getTargetForNumber(number)
             if (target != null) {
                 Log.i(TAG, "Executing tapNumber($number) -> Target Label: '${target.label}'")
@@ -342,6 +357,7 @@ class VoiceAccessibilityService : AccessibilityService() {
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         Log.i(TAG, "VoiceAccessibilityService unbound.")
         hideNumberOverlays()
+        hideGrid()
         AccessibilityCommandManager.unregisterService()
         return super.onUnbind(intent)
     }
@@ -350,6 +366,7 @@ class VoiceAccessibilityService : AccessibilityService() {
         super.onDestroy()
         Log.i(TAG, "VoiceAccessibilityService destroyed.")
         hideNumberOverlays()
+        hideGrid()
         AccessibilityCommandManager.unregisterService()
     }
 }

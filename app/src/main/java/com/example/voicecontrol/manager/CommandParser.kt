@@ -60,6 +60,26 @@ sealed interface VoiceCommand {
     data class TapNumber(val number: Int) : VoiceCommand
 
     /**
+     * Intent to display full-screen 3x3 Grid Overlay.
+     */
+    object ShowGrid : VoiceCommand
+
+    /**
+     * Intent to hide full-screen 3x3 Grid Overlay.
+     */
+    object HideGrid : VoiceCommand
+
+    /**
+     * Intent to reset Grid Overlay zoom level.
+     */
+    object ResetGrid : VoiceCommand
+
+    /**
+     * Intent to perform gesture click at center of active Grid region.
+     */
+    object ClickHere : VoiceCommand
+
+    /**
      * Unrecognized or unhandled voice command.
      * @param rawText Full original spoken text.
      */
@@ -85,7 +105,23 @@ object CommandParser {
 
         val lowerText = trimmedText.lowercase(Locale.getDefault())
 
-        // 1. Check for Show Numbers / Hide Numbers voice commands
+        // 1. Check for Grid Overlay commands
+        when (lowerText) {
+            "show grid", "show the grid", "display grid", "grid on", "open grid" -> {
+                return VoiceCommand.ShowGrid
+            }
+            "hide grid", "hide the grid", "remove grid", "grid off", "close grid" -> {
+                return VoiceCommand.HideGrid
+            }
+            "reset grid", "reset the grid", "clear grid zoom", "full grid" -> {
+                return VoiceCommand.ResetGrid
+            }
+            "click here", "press here", "tap here" -> {
+                return VoiceCommand.ClickHere
+            }
+        }
+
+        // 2. Check for Show Numbers / Hide Numbers voice commands
         when (lowerText) {
             "show numbers", "show number", "display numbers", "numbers on", "show badge numbers" -> {
                 return VoiceCommand.ShowNumbers
@@ -95,13 +131,13 @@ object CommandParser {
             }
         }
 
-        // 2. Check for Tap Number voice commands ("Tap 5", "Tap number 5", "Click 12", or pure digits "5")
+        // 3. Check for Tap Number / Grid Cell voice commands ("Tap 5", "Tap number 5", "Click 12", or pure digits "5")
         val numberFromTap = parseTapNumberCommand(lowerText, trimmedText)
         if (numberFromTap != null) {
             return VoiceCommand.TapNumber(numberFromTap)
         }
 
-        // 3. Check for Text-Based Click voice commands ("Tap Search", "Click Settings")
+        // 4. Check for Text-Based Click voice commands ("Tap Search", "Click Settings")
         for (prefix in TAP_PREFIXES) {
             if (lowerText.startsWith("$prefix ")) {
                 val targetText = trimmedText.substring(prefix.length).trim()
@@ -111,7 +147,7 @@ object CommandParser {
             }
         }
 
-        // 4. Check for Gesture Navigation voice commands (Swipe Up, Swipe Down, Swipe Left, Swipe Right)
+        // 5. Check for Gesture Navigation voice commands (Swipe Up, Swipe Down, Swipe Left, Swipe Right)
         when (lowerText) {
             "swipe up", "swipe upward", "upward swipe", "scroll down", "down", "page down" -> {
                 return VoiceCommand.SwipeGesture(GestureType.SWIPE_UP, "Swipe Up")
@@ -127,7 +163,7 @@ object CommandParser {
             }
         }
 
-        // 5. Check for Global Action voice commands
+        // 6. Check for Global Action voice commands
         when (lowerText) {
             "go home", "home", "go to home", "open home", "take me home" -> {
                 return VoiceCommand.GlobalAction(
@@ -149,7 +185,7 @@ object CommandParser {
             }
         }
 
-        // 6. Check for App Opening voice commands
+        // 7. Check for App Opening voice commands
         for (prefix in OPEN_PREFIXES) {
             if (lowerText.startsWith("$prefix ")) {
                 val extractedName = trimmedText.substring(prefix.length).trim()
