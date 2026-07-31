@@ -95,8 +95,8 @@ class ColumbusMlTapDetector(
 
             tfliteInterpreter = Interpreter(modelBuffer)
             Log.i(TAG, "TensorFlow Lite Columbus ML Model loaded successfully.")
-        } catch (e: Exception) {
-            Log.w(TAG, "TFLite model asset 'columbus_gesture.tflite' not found in assets, fallback to ML Heuristic Classifier.", e)
+        } catch (t: Throwable) {
+            Log.w(TAG, "TFLite model asset initialization skipped, using Columbus ML Signal Classifier.", t)
             tfliteInterpreter = null
         }
     }
@@ -253,8 +253,8 @@ class ColumbusMlTapDetector(
                 val tapProbability = outputArray[0][1]
                 val reason = if (tapProbability < CONFIDENCE_THRESHOLD) "ML Model Probability ${"%.1f".format(tapProbability * 100)}% < 85%" else "Passed ML Model"
                 return Pair(tapProbability, reason)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error executing TFLite inference", e)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Error executing TFLite inference", t)
             }
         }
 
