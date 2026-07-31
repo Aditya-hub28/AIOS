@@ -1,6 +1,7 @@
 package com.example.voicecontrol.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.voicecontrol.manager.AccessibilityCommandManager
@@ -21,10 +22,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel managing business logic for continuous voice recognition, app launching,
- * global accessibility actions, hardware key double-press toggle, and foreground service lifecycle.
+ * ViewModel managing business logic for sub-500ms voice recognition, real-time command execution,
+ * voice-controlled scrolling, app launching, global actions, and foreground service lifecycle.
  */
 class VoiceViewModel(application: Application) : AndroidViewModel(application) {
+
+    companion object {
+        private const val PERF_TAG = "PERF"
+    }
 
     private val speechManager = SpeechRecognizerManager(application.applicationContext)
     private val appLauncherManager = AppLauncherManager(application.applicationContext)
@@ -37,11 +42,11 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
     val isAccessibilityServiceConnected: StateFlow<Boolean> = AccessibilityCommandManager.isServiceConnected
 
-    // Timing tracking for Double Volume Up press detection & debounce
+    // Timing tracking for Double Volume Up press detection
     private var lastVolumeUpTime: Long = 0L
     private var lastToggleTime: Long = 0L
 
-    // Duplicate command prevention tracking
+    // Duplicate command prevention tracking (500ms window)
     private var lastExecutedCommand: String = ""
     private var lastExecutedTime: Long = 0L
 
@@ -65,12 +70,10 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
     fun onVolumeUpPressed(hasPermission: Boolean): Boolean {
         val currentTime = System.currentTimeMillis()
 
-        // Cooldown check: ignore if toggled within last 1000ms
         if (currentTime - lastToggleTime < 1000L) {
             return false
         }
 
-        // Check if second press occurred within 1000ms of first press
         if (currentTime - lastVolumeUpTime <= 1000L && lastVolumeUpTime > 0L) {
             lastToggleTime = currentTime
             lastVolumeUpTime = 0L
@@ -94,7 +97,6 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
         _isVoiceControlActive.value = newActiveState
 
         if (newActiveState) {
-            // Enable Voice Control & Start Foreground Service Notification
             VoiceControlService.start(context)
             if (hasPermission) {
                 startListening()
@@ -105,7 +107,6 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         } else {
-            // Disable Voice Control & Stop Foreground Service
             autoRestartJob?.cancel()
             speechManager.cancel()
             VoiceControlService.stop(context)
@@ -200,6 +201,9 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
                 if (!_isVoiceControlActive.value) return
                 currentText = partialText
                 _uiState.value = VoiceUiState.Listening(rmsdB = 5f, partialText = partialText)
+
+                // Real-time sub-500ms command evaluation on partial speech results
+                evaluateAndExecuteCommand(partialText, isPartial = true)
             }
 
             override fun onEndOfSpeech() {
@@ -211,26 +215,28 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             override fun onResults(recognizedText: String) {
                 if (!_isVoiceControlActive.value) return
                 currentText = recognizedText
-                handleRecognizedSpeech(recognizedText)
-                scheduleContinuousAutoRestart()
+                evaluateAndExecuteCommand(recognizedText, isPartial = false)
+                scheduleContinuousAutoRestart(immediate = false)
             }
 
             override fun onError(errorMessage: String) {
                 if (!_isVoiceControlActive.value) return
                 _uiState.value = VoiceUiState.Error(message = errorMessage)
-                scheduleContinuousAutoRestart()
+                scheduleContinuousAutoRestart(immediate = false)
             }
         })
     }
 
     /**
-     * Schedules automatic restart of speech recognition after a safe delay (continuous loop).
+     * Schedules automatic restart of speech recognition for continuous listening.
      */
-    private fun scheduleContinuousAutoRestart() {
+    private fun scheduleContinuousAutoRestart(immediate: Boolean = false) {
         if (!_isVoiceControlActive.value) return
         autoRestartJob?.cancel()
         autoRestartJob = viewModelScope.launch {
-            delay(750L)
+            if (!immediate) {
+                delay(300L) // Fast 300ms delay between cycles
+            }
             if (_isVoiceControlActive.value) {
                 startListening()
             }
@@ -238,28 +244,75 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Evaluates recognized speech string to check for actionable voice commands.
-     * Includes duplicate command debounce to prevent repeated executions.
+     * Evaluates recognized speech (partial or final) and executes commands instantly (< 500ms).
+     * Includes precision [PERF] timestamp logging at every stage.
      */
-    private fun handleRecognizedSpeech(recognizedText: String) {
+    private fun evaluateAndExecuteCommand(recognizedText: String, isPartial: Boolean) {
         val now = System.currentTimeMillis()
-        if (recognizedText.equals(lastExecutedCommand, ignoreCase = true) && (now - lastExecutedTime) < 1800L) {
+
+        // Debounce exact same command within 600ms
+        if (recognizedText.equals(lastExecutedCommand, ignoreCase = true) && (now - lastExecutedTime) < 600L) {
             return
         }
+
+        val command = CommandParser.parse(recognizedText)
+        if (command is VoiceCommand.Unknown) {
+            if (!isPartial) {
+                _uiState.value = VoiceUiState.Success(recognizedText = recognizedText)
+            }
+            return
+        }
+
+        // --- PERFORMANCE LOGGING PIPELINE ---
+        val t1_recognitionComplete = System.currentTimeMillis()
+        Log.i(PERF_TAG, "[PERF] 1. Recognition Complete (${if (isPartial) "Partial" else "Final"}): $t1_recognitionComplete ms | Text: \"$recognizedText\"")
+
+        val t2_commandParsed = System.currentTimeMillis()
+        Log.i(PERF_TAG, "[PERF] 2. Command Parsed: $t2_commandParsed ms | Command: $command")
+
+        val t3_executionStarted = System.currentTimeMillis()
+        Log.i(PERF_TAG, "[PERF] 3. Command Execution Started: $t3_executionStarted ms")
 
         lastExecutedCommand = recognizedText
         lastExecutedTime = now
 
-        when (val command = CommandParser.parse(recognizedText)) {
-            is VoiceCommand.GlobalAction -> {
-                val actionExecuted = AccessibilityCommandManager.executeGlobalAction(command.actionId)
-                if (actionExecuted) {
-                    _uiState.value = VoiceUiState.Success(
-                        recognizedText = "Action: ${command.actionName}"
-                    )
+        // Cancel speech recognizer immediately to avoid silence timeout wait
+        speechManager.cancel()
+
+        when (command) {
+            is VoiceCommand.Scroll -> {
+                val t4_triggered = System.currentTimeMillis()
+                Log.i(PERF_TAG, "[PERF] 4. Accessibility Action Triggered: $t4_triggered ms | Action: ${command.commandName}")
+
+                val success = AccessibilityCommandManager.performScroll(command.isForward)
+                val t5_completed = System.currentTimeMillis()
+                val totalLatency = t5_completed - t1_recognitionComplete
+
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+
+                if (success) {
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Action: ${command.commandName}")
                 } else {
                     _uiState.value = VoiceUiState.Error(
-                        message = "Accessibility Service is not enabled. Tap 'Enable Accessibility' below to turn on Voice Control in System Settings."
+                        message = "Unable to scroll. Ensure Accessibility Service is enabled."
+                    )
+                }
+            }
+            is VoiceCommand.GlobalAction -> {
+                val t4_triggered = System.currentTimeMillis()
+                Log.i(PERF_TAG, "[PERF] 4. Accessibility Action Triggered: $t4_triggered ms | Action: ${command.actionName}")
+
+                val actionExecuted = AccessibilityCommandManager.executeGlobalAction(command.actionId)
+                val t5_completed = System.currentTimeMillis()
+                val totalLatency = t5_completed - t1_recognitionComplete
+
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+
+                if (actionExecuted) {
+                    _uiState.value = VoiceUiState.Success(recognizedText = "Action: ${command.actionName}")
+                } else {
+                    _uiState.value = VoiceUiState.Error(
+                        message = "Accessibility Service is not enabled. Tap 'Enable' above to turn on in System Settings."
                     )
                 }
             }
@@ -267,28 +320,32 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
                 val targetApp = command.appName
                 _uiState.value = VoiceUiState.LaunchingApp(appName = targetApp)
 
-                when (val result = appLauncherManager.launchApp(targetApp)) {
+                val t4_triggered = System.currentTimeMillis()
+                Log.i(PERF_TAG, "[PERF] 4. App Launch Triggered: $t4_triggered ms | App: $targetApp")
+
+                val result = appLauncherManager.launchApp(targetApp)
+                val t5_completed = System.currentTimeMillis()
+                val totalLatency = t5_completed - t1_recognitionComplete
+
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+
+                when (result) {
                     is AppLaunchResult.Success -> {
-                        _uiState.value = VoiceUiState.Success(
-                            recognizedText = "Opening ${result.appName}..."
-                        )
+                        _uiState.value = VoiceUiState.Success(recognizedText = "Opening ${result.appName}...")
                     }
                     is AppLaunchResult.NotFound -> {
-                        _uiState.value = VoiceUiState.Error(
-                            message = "App '${result.targetAppName}' is not installed on this device."
-                        )
+                        _uiState.value = VoiceUiState.Error(message = "App '${result.targetAppName}' is not installed on this device.")
                     }
                     is AppLaunchResult.Error -> {
-                        _uiState.value = VoiceUiState.Error(
-                            message = result.errorMessage
-                        )
+                        _uiState.value = VoiceUiState.Error(message = result.errorMessage)
                     }
                 }
             }
-            is VoiceCommand.Unknown -> {
-                _uiState.value = VoiceUiState.Success(recognizedText = recognizedText)
-            }
+            is VoiceCommand.Unknown -> {}
         }
+
+        // Instantly restart continuous listening
+        scheduleContinuousAutoRestart(immediate = true)
     }
 
     /**

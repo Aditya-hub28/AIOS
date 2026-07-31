@@ -21,6 +21,13 @@ sealed interface VoiceCommand {
     data class GlobalAction(val actionId: Int, val actionName: String) : VoiceCommand
 
     /**
+     * Intent to scroll the active window up or down.
+     * @param isForward True for Scroll Down (forward), False for Scroll Up (backward).
+     * @param commandName Human-readable command description.
+     */
+    data class Scroll(val isForward: Boolean, val commandName: String) : VoiceCommand
+
+    /**
      * Unrecognized or unhandled voice command.
      * @param rawText Full original spoken text.
      */
@@ -45,7 +52,17 @@ object CommandParser {
 
         val lowerText = trimmedText.lowercase(Locale.getDefault())
 
-        // 1. Check for Global Action voice commands
+        // 1. Check for Scrolling voice commands
+        when (lowerText) {
+            "scroll down", "down", "scroll page down", "page down", "swipe down", "next page" -> {
+                return VoiceCommand.Scroll(isForward = true, commandName = "Scroll Down")
+            }
+            "scroll up", "up", "scroll page up", "page up", "swipe up", "previous page" -> {
+                return VoiceCommand.Scroll(isForward = false, commandName = "Scroll Up")
+            }
+        }
+
+        // 2. Check for Global Action voice commands
         when (lowerText) {
             "go home", "home", "go to home", "open home", "take me home" -> {
                 return VoiceCommand.GlobalAction(
@@ -67,7 +84,7 @@ object CommandParser {
             }
         }
 
-        // 2. Check for App Opening voice commands
+        // 3. Check for App Opening voice commands
         for (prefix in OPEN_PREFIXES) {
             if (lowerText.startsWith("$prefix ")) {
                 val extractedName = trimmedText.substring(prefix.length).trim()
