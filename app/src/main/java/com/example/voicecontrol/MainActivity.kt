@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        com.example.voicecontrol.manager.VoiceControlManager.startBackTapDetection(applicationContext)
         setContent {
             VoiceControlTheme {
                 VoiceControlScreen(viewModel = viewModel)

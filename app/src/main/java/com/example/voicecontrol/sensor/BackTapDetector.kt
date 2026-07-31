@@ -7,13 +7,14 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.SystemClock
 import android.util.Log
+import kotlin.math.abs
 import kotlin.math.sqrt
 
 /**
  * SensorEventListener detecting sharp triple back-tap impulses on the phone.
  * Combines Accelerometer & Gyroscope sensor fusion with false-positive motion filtering
  * (rejects walking motion, phone shaking, pocket movements, and random vibrations).
- * Low battery consumption & compatible with Android 12, 13, 14, 15, and 16+.
+ * Tuned for highly responsive real-device back tap detection across Android 12, 13, 14, 15, and 16+.
  */
 class BackTapDetector(
     private val context: Context,
@@ -23,12 +24,13 @@ class BackTapDetector(
     companion object {
         private const val TAG = "BackTapDetector"
 
-        // Sensor threshold tuning parameters
-        private const val TAP_ACCEL_THRESHOLD = 13.5f // m/s² acceleration impulse spike
-        private const val MAX_GYRO_ROTATION_THRESHOLD = 2.8f // rad/s maximum allowed angular velocity (rejects walking/shaking)
-        private const val MIN_TAP_INTERVAL_MS = 120L // Minimum ms between taps (prevents vibration echo double counts)
-        private const val TRIPLE_TAP_WINDOW_MS = 1000L // Entire 3-tap sequence must finish within 1000ms
-        private const val LOCKOUT_PERIOD_MS = 1500L // Lockout duration after successful triple tap detection
+        // Sensor threshold tuning parameters (tuned for realistic finger taps on phone back/case)
+        private const val TAP_ACCEL_THRESHOLD = 6.5f // m/s² acceleration impulse spike
+        private const val TAP_Z_ACCEL_THRESHOLD = 5.5f // m/s² Z-axis sharp inward impact spike
+        private const val MAX_GYRO_ROTATION_THRESHOLD = 4.5f // rad/s max allowed angular velocity
+        private const val MIN_TAP_INTERVAL_MS = 100L // Min ms between taps (prevents vibration echo)
+        private const val TRIPLE_TAP_WINDOW_MS = 1200L // 3 taps within 1200ms window
+        private const val LOCKOUT_PERIOD_MS = 1200L // Lockout cool-down after detection
     }
 
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
@@ -52,25 +54,25 @@ class BackTapDetector(
     private var lastDetectionTime = 0L
 
     /**
-     * Registers sensor listeners for Accelerometer & Gyroscope.
+     * Registers sensor listeners for Accelerometer & Gyroscope using SENSOR_DELAY_FASTEST.
      */
     fun startListening() {
         if (isListening || sensorManager == null) return
 
         var registered = false
         accelerometer?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST)
             registered = true
         }
         gyroscope?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST)
         }
 
         if (registered) {
             isListening = true
             hasAccelBaseline = false
             tapTimestamps.clear()
-            Log.i(TAG, "BackTapDetector started listening (Accelerometer + Gyroscope).")
+            Log.i(TAG, "BackTapDetector started listening with SENSOR_DELAY_FASTEST.")
         } else {
             Log.w(TAG, "Unable to start BackTapDetector: Accelerometer sensor not available.")
         }
@@ -129,15 +131,16 @@ class BackTapDetector(
                 val deltaMag = sqrt(dAx * dAx + dAy * dAy + dAz * dAz)
 
                 // NOISE REJECTION FILTERS:
-                // 1. Acceleration delta must exceed tap threshold (sharp impact)
-                // 2. Gyroscope rotational speed must be low (rejects walking/shaking/pocket motion)
-                // 3. Minimum interval between distinct taps (prevents vibration echo)
-                val isTapImpulse = deltaMag > TAP_ACCEL_THRESHOLD
+                // 1. Acceleration delta or Z-axis delta must exceed tap threshold
+                // 2. Gyroscope rotational speed must be below rotation ceiling
+                // 3. Debounce interval between taps
+                val isTapImpulse = deltaMag > TAP_ACCEL_THRESHOLD || abs(dAz) > TAP_Z_ACCEL_THRESHOLD
                 val isLowRotation = currentGyroMag < MAX_GYRO_ROTATION_THRESHOLD
                 val isDebounced = (now - lastTapTime) >= MIN_TAP_INTERVAL_MS
 
                 if (isTapImpulse && isLowRotation && isDebounced) {
                     lastTapTime = now
+                    Log.i(TAG, "Back Tap Impulse Detected! deltaMag=%.2f, dAz=%.2f, gyroMag=%.2f".format(deltaMag, dAz, currentGyroMag))
                     recordTap(now)
                 }
             }
@@ -145,27 +148,24 @@ class BackTapDetector(
     }
 
     private fun recordTap(timestamp: Long) {
-        // Prune taps older than 1000ms window
+        // Prune taps older than window
         tapTimestamps.removeAll { timestamp - it > TRIPLE_TAP_WINDOW_MS }
 
         tapTimestamps.add(timestamp)
-        Log.d(TAG, "Back tap detected! Count: ${tapTimestamps.size} / 3 in window")
+        Log.i(TAG, "Back tap count: ${tapTimestamps.size} / 3 in window")
 
         if (tapTimestamps.size >= 3) {
             val firstTap = tapTimestamps.first()
-            val lastTap = tapTimestamps.last()
-            val duration = lastTap - firstTap
+            val duration = timestamp - firstTap
 
             if (duration <= TRIPLE_TAP_WINDOW_MS) {
                 lastDetectionTime = timestamp
                 tapTimestamps.clear()
-                Log.i(TAG, "TRIPLE BACK TAP DETECTED! Sequence completed in ${duration}ms. Triggering action.")
+                Log.i(TAG, "TRIPLE BACK TAP SUCCESSFUL! Sequence completed in ${duration}ms.")
                 onTripleTap()
             }
         }
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        // No action required on accuracy change
-    }
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 }
