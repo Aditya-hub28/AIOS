@@ -88,6 +88,7 @@ sealed interface VoiceCommand {
 
 /**
  * CommandParser parses recognized text into structured VoiceCommand instances.
+ * Includes extensive fuzzy speech variations for Show Grid ("so grid", "saw grid", "shoe grid", "show grit").
  */
 object CommandParser {
 
@@ -105,15 +106,18 @@ object CommandParser {
 
         val lowerText = trimmedText.lowercase(Locale.getDefault())
 
-        // 1. Check for Grid Overlay commands
+        // 1. Check for Grid Overlay commands (including phonetic fuzzy variations: "so grid", "saw grid", "shoe grid", "show grit", "sure grid")
         when (lowerText) {
-            "show grid", "show the grid", "display grid", "grid on", "open grid" -> {
+            "show grid", "show the grid", "display grid", "grid on", "open grid",
+            "so grid", "saw grid", "shoe grid", "show great", "show grit", "so great", "so grit", "show red", "so red", "sure grid" -> {
                 return VoiceCommand.ShowGrid
             }
-            "hide grid", "hide the grid", "remove grid", "grid off", "close grid" -> {
+            "hide grid", "hide the grid", "remove grid", "grid off", "close grid",
+            "hi grid", "height grid", "high grid", "hide great", "hide grit" -> {
                 return VoiceCommand.HideGrid
             }
-            "reset grid", "reset the grid", "clear grid zoom", "full grid" -> {
+            "reset grid", "reset the grid", "clear grid zoom", "full grid",
+            "re set grid", "recet grid", "reset great" -> {
                 return VoiceCommand.ResetGrid
             }
             "click here", "press here", "tap here" -> {
@@ -121,12 +125,14 @@ object CommandParser {
             }
         }
 
-        // 2. Check for Show Numbers / Hide Numbers voice commands
+        // 2. Check for Show Numbers / Hide Numbers voice commands (including "so numbers", "saw numbers")
         when (lowerText) {
-            "show numbers", "show number", "display numbers", "numbers on", "show badge numbers" -> {
+            "show numbers", "show number", "display numbers", "numbers on", "show badge numbers",
+            "so numbers", "so number", "saw numbers", "shoe numbers" -> {
                 return VoiceCommand.ShowNumbers
             }
-            "hide numbers", "hide number", "remove numbers", "numbers off", "clear numbers" -> {
+            "hide numbers", "hide number", "remove numbers", "numbers off", "clear numbers",
+            "hi numbers", "height numbers" -> {
                 return VoiceCommand.HideNumbers
             }
         }
