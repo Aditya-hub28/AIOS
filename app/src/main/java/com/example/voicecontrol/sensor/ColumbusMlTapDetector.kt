@@ -35,7 +35,7 @@ class ColumbusMlTapDetector(
         // ML Feature Extraction Parameters
         private const val SAMPLE_WINDOW_SIZE = 50   // 50 samples (~1000ms window at 50Hz)
         private const val FEATURE_COUNT = 6         // 6 axes: ax, ay, az, gx, gy, gz
-        private const val CONFIDENCE_THRESHOLD = 0.78f // Require >= 78% ML Confidence for sweet spot precision
+        private const val CONFIDENCE_THRESHOLD = 0.88f // Require >= 88% ML Confidence as requested
         private const val ALPHA_LOW_PASS = 0.82f     // Low-pass filter for orientation-independent gravity tracking
 
         // Timing & Sequence Rules
@@ -238,7 +238,7 @@ class ColumbusMlTapDetector(
                     lastTapTime = now
                     processTapEvent(now, confidence, rejectionReason)
                 } else if (confidence > 0.40f) {
-                    Log.d(TAG, "REJECTED GESTURE: Confidence %.1f%% < 78.0%% | Reason: %s".format(confidence * 100f, rejectionReason))
+                    Log.d(TAG, "REJECTED GESTURE: Confidence %.1f%% < 88.0%% | Reason: %s".format(confidence * 100f, rejectionReason))
                 }
             }
         }
@@ -288,7 +288,7 @@ class ColumbusMlTapDetector(
         val stabilityRatio = (1.0f - (currentGyroMag / 0.45f)).coerceAtLeast(0f)
 
         val confidence = (jerkRatio * 0.55f + magRatio * 0.30f + stabilityRatio * 0.15f).coerceAtMost(0.98f)
-        val reason = if (confidence >= CONFIDENCE_THRESHOLD) "Physical Back Tap Verified" else "Confidence %.1f%% below 78.0%%".format(confidence * 100f)
+        val reason = if (confidence >= CONFIDENCE_THRESHOLD) "Physical Back Tap Verified" else "Confidence %.1f%% below 88.0%%".format(confidence * 100f)
         return Pair(confidence, reason)
     }
 
