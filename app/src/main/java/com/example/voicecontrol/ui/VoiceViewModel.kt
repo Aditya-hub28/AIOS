@@ -4,12 +4,12 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.voicecontrol.engine.CommandGrammarEngine
 import com.example.voicecontrol.manager.AccessibilityCommandManager
 import com.example.voicecontrol.manager.AppLaunchResult
 import com.example.voicecontrol.manager.AppLauncherManager
 import com.example.voicecontrol.manager.CommandParser
 import com.example.voicecontrol.manager.SpeechRecognitionListener
+import com.example.voicecontrol.manager.SpeechRecognizerManager
 import com.example.voicecontrol.manager.VoiceCommand
 import com.example.voicecontrol.service.VoiceControlService
 import com.example.voicecontrol.state.VoiceUiState
@@ -22,10 +22,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel managing business logic for native sub-100ms voice recognition, real-time command execution,
- * CommandGrammarEngine normalization, 3x3 Grid Overlay progressive zoom ("Show Grid", "Click Here"),
- * number overlays ("Show Numbers"), dynamic text-based UI clicking ("Tap Search", "Tap Communities", "Tap Chats"),
- * text typing ("Type hello world"), gesture navigation, LeetCode & dynamic app launching, global actions, and service lifecycle.
+ * ViewModel managing business logic for sub-500ms voice recognition, real-time command execution,
+ * 3x3 Grid Overlay progressive zoom ("Show Grid", "Click Here"), number overlays ("Show Numbers"),
+ * text-based UI clicking ("Tap Search"), gesture navigation, app launching, global actions, and service lifecycle.
  */
 class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -33,7 +32,7 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
         private const val PERF_TAG = "PERF"
     }
 
-    private val grammarEngine = CommandGrammarEngine(application.applicationContext)
+    private val speechManager = SpeechRecognizerManager(application.applicationContext)
     private val appLauncherManager = AppLauncherManager(application.applicationContext)
 
     private val _uiState = MutableStateFlow<VoiceUiState>(VoiceUiState.Idle)
@@ -110,7 +109,7 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             }
         } else {
             autoRestartJob?.cancel()
-            grammarEngine.cancel()
+            speechManager.cancel()
             VoiceControlService.stop(context)
             _uiState.value = VoiceUiState.Disabled
         }
@@ -160,22 +159,22 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Starts the speech recognizer service using native Android Speech Engine.
+     * Starts the speech recognizer service.
      */
     fun startListening() {
         autoRestartJob?.cancel()
         if (!_isVoiceControlActive.value) return
 
-        if (!grammarEngine.isAvailable()) {
+        if (!speechManager.isAvailable()) {
             _uiState.value = VoiceUiState.Error(
-                message = "Native SpeechRecognizer is not available on this device."
+                message = "Speech recognition service is not available on this device."
             )
             return
         }
 
         _uiState.value = VoiceUiState.Listening(rmsdB = 0f, partialText = currentText)
 
-        grammarEngine.startListening(object : SpeechRecognitionListener {
+        speechManager.startListening(object : SpeechRecognitionListener {
             override fun onReadyForSpeech() {
                 if (_isVoiceControlActive.value) {
                     _uiState.value = VoiceUiState.Listening(rmsdB = 0f, partialText = currentText)
@@ -204,7 +203,7 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
                 currentText = partialText
                 _uiState.value = VoiceUiState.Listening(rmsdB = 5f, partialText = partialText)
 
-                // Real-time sub-100ms command evaluation on partial speech results
+                // Real-time sub-500ms command evaluation on partial speech results
                 evaluateAndExecuteCommand(partialText, isPartial = true)
             }
 
@@ -246,7 +245,7 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Evaluates recognized speech (partial or final) via CommandGrammarEngine and executes commands instantly (< 100ms).
+     * Evaluates recognized speech (partial or final) and executes commands instantly (< 500ms).
      * Includes precision [PERF] timestamp logging at every stage.
      */
     private fun evaluateAndExecuteCommand(recognizedText: String, isPartial: Boolean) {
@@ -257,10 +256,7 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // Run structured GrammarResult parsing via CommandGrammarEngine
-        val grammarResult = grammarEngine.parseGrammarIntent(recognizedText)
-        val command = CommandParser.parse(grammarResult.matchedPhrase)
-
+        val command = CommandParser.parse(recognizedText)
         if (command is VoiceCommand.Unknown) {
             if (!isPartial) {
                 _uiState.value = VoiceUiState.Success(recognizedText = recognizedText)
@@ -270,43 +266,30 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
         // --- PERFORMANCE LOGGING PIPELINE ---
         val t1_recognitionComplete = System.currentTimeMillis()
-        Log.i(PERF_TAG, "[PERF] [GrammarEngine] 1. Recognition Complete (${if (isPartial) "Partial" else "Final"}): $t1_recognitionComplete ms | Text: \"$recognizedText\"")
+        Log.i(PERF_TAG, "[PERF] 1. Recognition Complete (${if (isPartial) "Partial" else "Final"}): $t1_recognitionComplete ms | Text: \"$recognizedText\"")
 
         val t2_commandParsed = System.currentTimeMillis()
-        Log.i(PERF_TAG, "[PERF] [GrammarEngine] 2. Command Parsed: $t2_commandParsed ms | Intent: ${grammarResult.intent} | Confidence: ${grammarResult.confidence}")
+        Log.i(PERF_TAG, "[PERF] 2. Command Parsed: $t2_commandParsed ms | Command: $command")
 
         val t3_executionStarted = System.currentTimeMillis()
-        Log.i(PERF_TAG, "[PERF] [GrammarEngine] 3. Command Execution Started: $t3_executionStarted ms")
+        Log.i(PERF_TAG, "[PERF] 3. Command Execution Started: $t3_executionStarted ms")
 
         lastExecutedCommand = recognizedText
         lastExecutedTime = now
 
-        // Cancel speech recognizer immediately to execute action without delay
-        grammarEngine.cancel()
+        // Cancel speech recognizer immediately to avoid silence timeout wait
+        speechManager.cancel()
 
         when (command) {
-            VoiceCommand.ListApps -> {
-                val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. List Apps Triggered: $t4_triggered ms")
-
-                val appCount = grammarEngine.logAllInstalledApps()
-
-                val t5_completed = System.currentTimeMillis()
-                val totalLatency = t5_completed - t1_recognitionComplete
-
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
-
-                _uiState.value = VoiceUiState.Success(recognizedText = "Logged $appCount apps to Logcat (tag: VOICE_APPS)")
-            }
             VoiceCommand.ShowGrid -> {
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. Show Grid Triggered: $t4_triggered ms")
+                Log.i(PERF_TAG, "[PERF] 4. Show Grid Triggered: $t4_triggered ms")
 
                 val success = AccessibilityCommandManager.showGrid()
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (success) {
                     _uiState.value = VoiceUiState.Success(recognizedText = "Showing 3x3 Grid")
@@ -316,13 +299,13 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             }
             VoiceCommand.HideGrid -> {
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. Hide Grid Triggered: $t4_triggered ms")
+                Log.i(PERF_TAG, "[PERF] 4. Hide Grid Triggered: $t4_triggered ms")
 
                 val success = AccessibilityCommandManager.hideGrid()
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (success) {
                     _uiState.value = VoiceUiState.Success(recognizedText = "Grid Overlay Hidden")
@@ -330,13 +313,13 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             }
             VoiceCommand.ResetGrid -> {
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. Reset Grid Triggered: $t4_triggered ms")
+                Log.i(PERF_TAG, "[PERF] 4. Reset Grid Triggered: $t4_triggered ms")
 
                 val success = AccessibilityCommandManager.resetGrid()
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (success) {
                     _uiState.value = VoiceUiState.Success(recognizedText = "Grid Reset")
@@ -344,13 +327,13 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             }
             VoiceCommand.ClickHere -> {
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. Click Here Triggered: $t4_triggered ms")
+                Log.i(PERF_TAG, "[PERF] 4. Click Here Triggered: $t4_triggered ms")
 
                 val success = AccessibilityCommandManager.clickHere()
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (success) {
                     _uiState.value = VoiceUiState.Success(recognizedText = "Clicked Selected Area")
@@ -360,13 +343,13 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             }
             VoiceCommand.ShowNumbers -> {
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. Show Numbers Triggered: $t4_triggered ms")
+                Log.i(PERF_TAG, "[PERF] 4. Show Numbers Triggered: $t4_triggered ms")
 
                 val success = AccessibilityCommandManager.showNumbers()
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (success) {
                     _uiState.value = VoiceUiState.Success(recognizedText = "Showing Numbers")
@@ -376,13 +359,13 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             }
             VoiceCommand.HideNumbers -> {
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. Hide Numbers Triggered: $t4_triggered ms")
+                Log.i(PERF_TAG, "[PERF] 4. Hide Numbers Triggered: $t4_triggered ms")
 
                 val success = AccessibilityCommandManager.hideNumbers()
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (success) {
                     _uiState.value = VoiceUiState.Success(recognizedText = "Hidden Numbers")
@@ -391,13 +374,13 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             is VoiceCommand.TapNumber -> {
                 val num = command.number
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. Tap Number/Cell Triggered: $t4_triggered ms | Number: $num")
+                Log.i(PERF_TAG, "[PERF] 4. Tap Number/Cell Triggered: $t4_triggered ms | Number: $num")
 
                 val success = AccessibilityCommandManager.tapNumber(num)
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (success) {
                     _uiState.value = VoiceUiState.Success(recognizedText = "Selected #$num")
@@ -408,13 +391,13 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             is VoiceCommand.TapElement -> {
                 val targetText = command.targetText
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. Accessibility Click Triggered: $t4_triggered ms | Target: '$targetText'")
+                Log.i(PERF_TAG, "[PERF] 4. Accessibility Click Triggered: $t4_triggered ms | Target: '$targetText'")
 
                 val success = AccessibilityCommandManager.performClickByText(targetText)
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (success) {
                     _uiState.value = VoiceUiState.Success(recognizedText = "Tapped '$targetText'")
@@ -424,34 +407,15 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }
-            is VoiceCommand.TypeText -> {
-                val textToType = command.textToType
-                val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. Text Type Triggered: $t4_triggered ms | Text: '$textToType'")
-
-                val success = AccessibilityCommandManager.performTypeText(textToType)
-                val t5_completed = System.currentTimeMillis()
-                val totalLatency = t5_completed - t1_recognitionComplete
-
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
-
-                if (success) {
-                    _uiState.value = VoiceUiState.Success(recognizedText = "Typed '$textToType'")
-                } else {
-                    _uiState.value = VoiceUiState.Error(
-                        message = "Could not find an active editable text box to type '$textToType'."
-                    )
-                }
-            }
             is VoiceCommand.SwipeGesture -> {
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. Accessibility Swipe Gesture Triggered: $t4_triggered ms | Gesture: ${command.label}")
+                Log.i(PERF_TAG, "[PERF] 4. Accessibility Swipe Gesture Triggered: $t4_triggered ms | Gesture: ${command.label}")
 
                 val success = AccessibilityCommandManager.performSwipeGesture(command.type)
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (success) {
                     _uiState.value = VoiceUiState.Success(recognizedText = "Action: ${command.label}")
@@ -463,13 +427,13 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
             }
             is VoiceCommand.GlobalAction -> {
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. Accessibility Action Triggered: $t4_triggered ms | Action: ${command.actionName}")
+                Log.i(PERF_TAG, "[PERF] 4. Accessibility Action Triggered: $t4_triggered ms | Action: ${command.actionName}")
 
                 val actionExecuted = AccessibilityCommandManager.executeGlobalAction(command.actionId)
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 if (actionExecuted) {
                     _uiState.value = VoiceUiState.Success(recognizedText = "Action: ${command.actionName}")
@@ -484,13 +448,13 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value = VoiceUiState.LaunchingApp(appName = targetApp)
 
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 4. App Launch Triggered: $t4_triggered ms | App: $targetApp")
+                Log.i(PERF_TAG, "[PERF] 4. App Launch Triggered: $t4_triggered ms | App: $targetApp")
 
                 val result = appLauncherManager.launchApp(targetApp)
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 
-                Log.i(PERF_TAG, "[PERF] [GrammarEngine] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
+                Log.i(PERF_TAG, "[PERF] 5. Action Completed: $t5_completed ms | Total Latency: $totalLatency ms")
 
                 when (result) {
                     is AppLaunchResult.Success -> {
@@ -517,7 +481,7 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
     fun stopListening() {
         autoRestartJob?.cancel()
         _uiState.value = VoiceUiState.Processing
-        grammarEngine.stopListening()
+        speechManager.stopListening()
     }
 
     /**
@@ -538,6 +502,6 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         autoRestartJob?.cancel()
-        grammarEngine.destroy()
+        speechManager.destroy()
     }
 }

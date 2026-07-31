@@ -57,8 +57,7 @@ import com.example.voicecontrol.ui.components.StatusIndicator
 
 /**
  * Main screen composable for the VoiceControl application.
- * Manages runtime permissions, layout composition, continuous listening state, accessibility status,
- * sub-100ms real-time native speech recognition, and ViewModel bindings.
+ * Manages runtime permissions, layout composition, continuous listening state, accessibility status, and ViewModel bindings.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -190,12 +189,12 @@ fun VoiceControlScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
             // Top Section: Status Indicator Badge
             StatusIndicator(
                 uiState = currentState,
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 8.dp)
             )
 
             // Accessibility Service Warning Banner (if service is not enabled)
@@ -274,12 +273,12 @@ fun VoiceControlScreen(
 
                 Text(
                     text = when (currentState) {
-                        is VoiceUiState.Listening -> "Listening for voice commands..."
+                        is VoiceUiState.Listening -> "Continuous Listening Active"
                         is VoiceUiState.Processing -> "Processing Speech..."
                         is VoiceUiState.LaunchingApp -> "Opening ${currentState.appName}..."
                         is VoiceUiState.Disabled -> "Voice Control Disabled. Double press Volume Up to Enable"
                         is VoiceUiState.Error -> "Tap to Retry"
-                        else -> "Engine Ready"
+                        else -> "Continuous Listening Active"
                     },
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),

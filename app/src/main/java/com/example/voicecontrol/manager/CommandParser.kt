@@ -38,16 +38,10 @@ sealed interface VoiceCommand {
     data class SwipeGesture(val type: GestureType, val label: String) : VoiceCommand
 
     /**
-     * Intent to click a UI element by text or content description ("Tap Search", "Tap Communities", "Tap Chats").
-     * @param targetText Dynamic element text/description to match and click recursively on screen.
+     * Intent to click a UI element by text or content description ("Tap Search", "Tap Install").
+     * @param targetText Element text/description to match and click.
      */
     data class TapElement(val targetText: String) : VoiceCommand
-
-    /**
-     * Intent to type arbitrary text into active focused text field ("Type hello world").
-     * @param textToType Spoken text content to inject.
-     */
-    data class TypeText(val textToType: String) : VoiceCommand
 
     /**
      * Intent to display number overlays over all clickable elements on screen.
@@ -86,11 +80,6 @@ sealed interface VoiceCommand {
     object ClickHere : VoiceCommand
 
     /**
-     * Debug intent to log all discovered launchable applications to Logcat under VOICE_APPS.
-     */
-    object ListApps : VoiceCommand
-
-    /**
      * Unrecognized or unhandled voice command.
      * @param rawText Full original spoken text.
      */
@@ -98,17 +87,15 @@ sealed interface VoiceCommand {
 }
 
 /**
- * CommandParser parses recognized speech strings into structured VoiceCommand instances.
- * Restores 100% dynamic Tap by Text and Text Typing support.
+ * CommandParser parses recognized text into structured VoiceCommand instances.
  */
 object CommandParser {
 
     private val OPEN_PREFIXES = listOf("open", "launch", "start", "run", "go to")
     private val TAP_PREFIXES = listOf("tap", "click", "press", "select", "touch")
-    private val TYPE_PREFIXES = listOf("type", "enter", "input", "write")
 
     /**
-     * Parses a raw spoken text string and extracts the voice intent.
+     * Parses a raw spoken text string and extracts the intent.
      */
     fun parse(rawText: String): VoiceCommand {
         val trimmedText = rawText.trim()
@@ -118,14 +105,7 @@ object CommandParser {
 
         val lowerText = trimmedText.lowercase(Locale.getDefault())
 
-        // 1. Check for Debug "list apps" voice command
-        when (lowerText) {
-            "list apps", "show apps", "all apps", "list all apps", "log apps" -> {
-                return VoiceCommand.ListApps
-            }
-        }
-
-        // 2. Check for Grid Overlay commands
+        // 1. Check for Grid Overlay commands
         when (lowerText) {
             "show grid", "show the grid", "display grid", "grid on", "open grid" -> {
                 return VoiceCommand.ShowGrid
@@ -141,7 +121,7 @@ object CommandParser {
             }
         }
 
-        // 3. Check for Show Numbers / Hide Numbers voice commands
+        // 2. Check for Show Numbers / Hide Numbers voice commands
         when (lowerText) {
             "show numbers", "show number", "display numbers", "numbers on", "show badge numbers" -> {
                 return VoiceCommand.ShowNumbers
@@ -151,23 +131,13 @@ object CommandParser {
             }
         }
 
-        // 4. Check for Tap Number / Grid Cell voice commands ("Tap 5", "Tap number 5", "Click 12", or pure digits "5")
+        // 3. Check for Tap Number / Grid Cell voice commands ("Tap 5", "Tap number 5", "Click 12", or pure digits "5")
         val numberFromTap = parseTapNumberCommand(lowerText, trimmedText)
         if (numberFromTap != null) {
             return VoiceCommand.TapNumber(numberFromTap)
         }
 
-        // 5. Check for Text Typing voice commands ("Type hello world", "Write my name is aditya")
-        for (prefix in TYPE_PREFIXES) {
-            if (lowerText.startsWith("$prefix ")) {
-                val textToType = trimmedText.substring(prefix.length).trim()
-                if (textToType.isNotBlank()) {
-                    return VoiceCommand.TypeText(textToType)
-                }
-            }
-        }
-
-        // 6. Dynamic "Tap by Text" matching for ANY "tap <text>", "click <text>", "press <text>" command
+        // 4. Check for Text-Based Click voice commands ("Tap Search", "Click Settings")
         for (prefix in TAP_PREFIXES) {
             if (lowerText.startsWith("$prefix ")) {
                 val targetText = trimmedText.substring(prefix.length).trim()
@@ -177,7 +147,7 @@ object CommandParser {
             }
         }
 
-        // 7. Check for Gesture Navigation voice commands (Swipe Up, Swipe Down, Swipe Left, Swipe Right)
+        // 5. Check for Gesture Navigation voice commands (Swipe Up, Swipe Down, Swipe Left, Swipe Right)
         when (lowerText) {
             "swipe up", "swipe upward", "upward swipe", "scroll down", "down", "page down" -> {
                 return VoiceCommand.SwipeGesture(GestureType.SWIPE_UP, "Swipe Up")
@@ -193,7 +163,7 @@ object CommandParser {
             }
         }
 
-        // 8. Check for Global Action voice commands
+        // 6. Check for Global Action voice commands
         when (lowerText) {
             "go home", "home", "go to home", "open home", "take me home" -> {
                 return VoiceCommand.GlobalAction(
@@ -215,7 +185,7 @@ object CommandParser {
             }
         }
 
-        // 9. Check for App Opening voice commands ("open whatsapp", "open leetcode", "open instagram")
+        // 7. Check for App Opening voice commands
         for (prefix in OPEN_PREFIXES) {
             if (lowerText.startsWith("$prefix ")) {
                 val extractedName = trimmedText.substring(prefix.length).trim()
@@ -224,11 +194,6 @@ object CommandParser {
                     return VoiceCommand.OpenApp(cleanedName)
                 }
             }
-        }
-
-        // Standalone app name launch fallback (e.g. "leetcode", "whatsapp", "instagram")
-        if (!lowerText.contains(" ") && lowerText.length > 2) {
-            return VoiceCommand.OpenApp(trimmedText)
         }
 
         return VoiceCommand.Unknown(trimmedText)

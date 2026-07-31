@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Singleton manager routing global action, scroll, text click, text type, overlay, grid, and gesture execution requests to the active VoiceAccessibilityService.
+ * Singleton manager routing global action, scroll, text click, overlay, grid, and gesture execution requests to the active VoiceAccessibilityService.
+ * Extensible for future accessibility features (OCR, AI agent).
  */
 object AccessibilityCommandManager {
 
@@ -118,21 +119,6 @@ object AccessibilityCommandManager {
             return result
         } else {
             Log.w(TAG, "Unable to perform click for '$targetText': VoiceAccessibilityService is not connected.")
-            return false
-        }
-    }
-
-    /**
-     * Types arbitrary text into the focused input field ("type hello world").
-     */
-    fun performTypeText(textToType: String): Boolean {
-        val service = serviceInstance
-        if (service != null) {
-            val result = service.performTypeText(textToType)
-            Log.i(TAG, "Executed performTypeText('$textToType'): $result")
-            return result
-        } else {
-            Log.w(TAG, "Unable to perform text type '$textToType': VoiceAccessibilityService is not connected.")
             return false
         }
     }
