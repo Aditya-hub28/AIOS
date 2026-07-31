@@ -75,7 +75,7 @@ class BackTapDetector(
     var currentState: BackTapDetectorState = BackTapDetectorState.IDLE
         private set
 
-    var currentMotion: MotionClassification = MotionClassification.PHONE_STILL
+    var currentMotion: MotionClassification = MotionClassification.STILL
         private set
 
     // Sensor State Variables
