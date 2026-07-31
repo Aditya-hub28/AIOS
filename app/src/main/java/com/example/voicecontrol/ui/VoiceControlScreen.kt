@@ -28,6 +28,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.voicecontrol.engine.EngineType
 import com.example.voicecontrol.state.VoiceUiState
 import com.example.voicecontrol.ui.components.MicButton
 import com.example.voicecontrol.ui.components.RecognizedTextDisplay
@@ -57,7 +59,8 @@ import com.example.voicecontrol.ui.components.StatusIndicator
 
 /**
  * Main screen composable for the VoiceControl application.
- * Manages runtime permissions, layout composition, continuous listening state, accessibility status, and ViewModel bindings.
+ * Manages runtime permissions, layout composition, continuous listening state, accessibility status,
+ * recognition engine switching (Native Android vs Vosk Offline), and ViewModel bindings.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +71,7 @@ fun VoiceControlScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val isAccessibilityConnected by viewModel.isAccessibilityServiceConnected.collectAsState()
+    val selectedEngine by viewModel.selectedEngineType.collectAsState()
 
     val currentState = uiState
 
@@ -189,12 +193,33 @@ fun VoiceControlScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .padding(horizontal = 24.dp, vertical = 12.dp)
         ) {
+            // Engine Switcher FilterChips Row
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp)
+            ) {
+                FilterChip(
+                    selected = selectedEngine == EngineType.NATIVE_ANDROID,
+                    onClick = { viewModel.selectEngine(EngineType.NATIVE_ANDROID) },
+                    label = { Text("Native Android", fontSize = 11.sp) },
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                FilterChip(
+                    selected = selectedEngine == EngineType.VOSK_OFFLINE,
+                    onClick = { viewModel.selectEngine(EngineType.VOSK_OFFLINE) },
+                    label = { Text("Vosk Offline (Exp)", fontSize = 11.sp) }
+                )
+            }
+
             // Top Section: Status Indicator Badge
             StatusIndicator(
                 uiState = currentState,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 4.dp)
             )
 
             // Accessibility Service Warning Banner (if service is not enabled)
@@ -273,12 +298,12 @@ fun VoiceControlScreen(
 
                 Text(
                     text = when (currentState) {
-                        is VoiceUiState.Listening -> "Continuous Listening Active"
+                        is VoiceUiState.Listening -> "Active Engine: ${selectedEngine.displayName}"
                         is VoiceUiState.Processing -> "Processing Speech..."
                         is VoiceUiState.LaunchingApp -> "Opening ${currentState.appName}..."
                         is VoiceUiState.Disabled -> "Voice Control Disabled. Double press Volume Up to Enable"
                         is VoiceUiState.Error -> "Tap to Retry"
-                        else -> "Continuous Listening Active"
+                        else -> "Active Engine: ${selectedEngine.displayName}"
                     },
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
