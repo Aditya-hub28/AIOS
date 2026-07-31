@@ -252,7 +252,15 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
             override fun onError(errorMessage: String) {
                 if (!_isVoiceControlActive.value) return
-                _uiState.value = VoiceUiState.Error(message = errorMessage)
+                val hasPermission = ContextCompat.checkSelfPermission(
+                    getApplication(),
+                    Manifest.permission.RECORD_AUDIO
+                ) == PackageManager.PERMISSION_GRANTED
+
+                Log.w(TAG, "SpeechRecognizer transient error: $errorMessage")
+                if (!hasPermission) {
+                    _uiState.value = VoiceUiState.Error(message = errorMessage, isPermissionError = true)
+                }
                 scheduleContinuousAutoRestart(immediate = false)
             }
         })

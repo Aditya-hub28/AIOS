@@ -63,14 +63,18 @@ class VoiceControlService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 val notification = buildNotification()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    startForeground(
-                        NOTIFICATION_ID,
-                        notification,
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-                    )
-                } else {
-                    startForeground(NOTIFICATION_ID, notification)
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        startForeground(
+                            NOTIFICATION_ID,
+                            notification,
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                        )
+                    } else {
+                        startForeground(NOTIFICATION_ID, notification)
+                    }
+                } catch (e: Exception) {
+                    Log.w("VoiceControlService", "Foreground service start exception", e)
                 }
             }
             ACTION_STOP -> {

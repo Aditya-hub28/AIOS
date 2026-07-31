@@ -115,8 +115,13 @@ fun VoiceControlScreen(
         }
     }
 
-    // Permission Rationale Dialog for denied state
-    if (showPermissionRationaleDialog || (currentState is VoiceUiState.Error && currentState.isPermissionError)) {
+    val hasMicPermission = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.RECORD_AUDIO
+    ) == PackageManager.PERMISSION_GRANTED
+
+    // Permission Rationale Dialog for denied state ONLY
+    if (!hasMicPermission && (showPermissionRationaleDialog || (currentState is VoiceUiState.Error && currentState.isPermissionError))) {
         AlertDialog(
             onDismissRequest = {
                 showPermissionRationaleDialog = false
