@@ -18,7 +18,7 @@ import android.view.animation.DecelerateInterpolator
 import kotlin.math.min
 
 /**
- * Manager handling rendering and animated updates of dynamic Grid Overlay via WindowManager.
+ * Manager handling rendering and animated updates of dynamic Grid Overlay (3x3 to 10x10) via WindowManager.
  */
 object GridOverlayManager {
 
@@ -28,7 +28,7 @@ object GridOverlayManager {
     private var gridCanvasView: GridCanvasView? = null
 
     /**
-     * Custom Canvas View rendering iPhone Voice Control style dynamic grid lines, animated transitions, and cell numbers.
+     * Custom Canvas View rendering responsive iPhone Voice Control style dynamic grid lines and badges.
      */
     private class GridCanvasView(context: Context) : View(context) {
 
@@ -60,7 +60,6 @@ object GridOverlayManager {
 
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 22f
             textAlign = Paint.Align.CENTER
             isFakeBoldText = true
         }
@@ -103,44 +102,56 @@ object GridOverlayManager {
 
             val cols = GridStateManager.cols
             val rows = GridStateManager.rows
-            val cellW = bounds.width() / cols.toFloat()
-            val cellH = bounds.height() / rows.toFloat()
 
-            // 1. Draw outer boundary box around active region
+            // 1. Calculate cellWidth & cellHeight dynamically
+            val cellWidth = bounds.width() / cols.toFloat()
+            val cellHeight = bounds.height() / rows.toFloat()
+
+            // 2. Draw outer boundary box
             canvas.drawRect(bounds, borderPaint)
 
-            // 2. Draw vertical grid lines
+            // 3. Draw vertical grid lines
             for (col in 1 until cols) {
-                val x = bounds.left + (col * cellW)
+                val x = bounds.left + (col * cellWidth)
                 canvas.drawLine(x, bounds.top, x, bounds.bottom, gridLinePaint)
             }
 
-            // 3. Draw horizontal grid lines
+            // 4. Draw horizontal grid lines
             for (row in 1 until rows) {
-                val y = bounds.top + (row * cellH)
+                val y = bounds.top + (row * cellHeight)
                 canvas.drawLine(bounds.left, y, bounds.right, y, gridLinePaint)
             }
 
-            // 4. Draw cell number badges (1..totalCells) at center of each cell
-            val minDim = min(cellW, cellH)
-            val badgeRadius = (minDim * 0.28f).coerceIn(10f, 24f)
-            val fontSize = (badgeRadius * 1.1f).coerceIn(10f, 22f)
-            textPaint.textSize = fontSize
+            // 5. Responsive sizing calculations
+            val minCellDim = min(cellWidth, cellHeight)
+            val badgeRadius = minCellDim * 0.25f
+            val baseTextSize = minCellDim * 0.4f
 
-            val textOffset = (textPaint.descent() + textPaint.ascent()) / 2f
+            badgeBorderPaint.strokeWidth = (badgeRadius * 0.08f).coerceAtLeast(1.5f)
+
             var number = 1
 
             for (row in 0 until rows) {
                 for (col in 0 until cols) {
-                    val centerX = bounds.left + (col * cellW) + (cellW / 2f)
-                    val centerY = bounds.top + (row * cellH) + (cellH / 2f)
+                    // Center point of each cell
+                    val centerX = bounds.left + (col * cellWidth) + (cellWidth / 2f)
+                    val centerY = bounds.top + (row * cellHeight) + (cellHeight / 2f)
 
-                    // Draw pill background circle
+                    // Adjust text size for 3-digit cell numbers to prevent overflow inside badge circle
+                    val textSize = if (number >= 100) baseTextSize * 0.8f else baseTextSize
+                    textPaint.textSize = textSize
+
+                    // Perfect vertical center alignment calculation using FontMetrics
+                    val fontMetrics = textPaint.fontMetrics
+                    val textOffset = (fontMetrics.descent + fontMetrics.ascent) / 2f
+                    val textY = centerY - textOffset
+
+                    // Draw pill background circle and border
                     canvas.drawCircle(centerX, centerY, badgeRadius, badgeBgPaint)
                     canvas.drawCircle(centerX, centerY, badgeRadius, badgeBorderPaint)
 
-                    // Draw text number (1..totalCells)
-                    canvas.drawText(number.toString(), centerX, centerY - textOffset, textPaint)
+                    // Draw text label centered
+                    canvas.drawText(number.toString(), centerX, textY, textPaint)
 
                     number++
                 }

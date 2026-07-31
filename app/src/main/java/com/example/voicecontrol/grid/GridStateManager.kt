@@ -5,7 +5,7 @@ import android.graphics.RectF
 import android.util.Log
 
 /**
- * Singleton managing active screen bounds, dynamic grid dimensions (rows × cols), and recursive zoom depth.
+ * Singleton managing active screen bounds, dynamic grid dimensions (3x3 to 10x10), and recursive zoom depth.
  */
 object GridStateManager {
 
@@ -13,6 +13,8 @@ object GridStateManager {
 
     const val DEFAULT_ROWS = 6
     const val DEFAULT_COLS = 6
+    const val MIN_GRID_DIM = 3
+    const val MAX_GRID_DIM = 10
     const val MAX_ZOOM_DEPTH = 2
 
     var isGridActive: Boolean = false
@@ -36,13 +38,14 @@ object GridStateManager {
 
     /**
      * Updates rows and columns configuration while maintaining values for unsupplied parameters.
+     * Dimensions are constrained within 3..10 range.
      */
     fun configureGrid(newRows: Int? = null, newCols: Int? = null, rawCommand: String = "configure grid") {
         if (newRows != null && newRows > 0) {
-            rows = newRows.coerceIn(1, 20)
+            rows = newRows.coerceIn(MIN_GRID_DIM, MAX_GRID_DIM)
         }
         if (newCols != null && newCols > 0) {
-            cols = newCols.coerceIn(1, 20)
+            cols = newCols.coerceIn(MIN_GRID_DIM, MAX_GRID_DIM)
         }
         logGridState(rawCommand)
     }
@@ -57,8 +60,8 @@ object GridStateManager {
         isGridActive = true
 
         if (newRows != null || newCols != null) {
-            if (newRows != null && newRows > 0) rows = newRows.coerceIn(1, 20)
-            if (newCols != null && newCols > 0) cols = newCols.coerceIn(1, 20)
+            if (newRows != null && newRows > 0) rows = newRows.coerceIn(MIN_GRID_DIM, MAX_GRID_DIM)
+            if (newCols != null && newCols > 0) cols = newCols.coerceIn(MIN_GRID_DIM, MAX_GRID_DIM)
         }
         logGridState(rawCommand)
     }
