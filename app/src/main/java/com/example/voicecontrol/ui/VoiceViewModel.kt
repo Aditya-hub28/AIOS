@@ -23,8 +23,8 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel managing business logic for sub-500ms voice recognition, real-time command execution,
- * gesture navigation (Scroll Down, Scroll Up, Swipe Left, Swipe Right), app launching, global actions,
- * and foreground service lifecycle.
+ * iPhone-style gesture navigation (Swipe Up, Swipe Down, Swipe Left, Swipe Right), app launching,
+ * global actions, and foreground service lifecycle.
  */
 class VoiceViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -281,11 +281,11 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
         speechManager.cancel()
 
         when (command) {
-            is VoiceCommand.GestureNav -> {
+            is VoiceCommand.SwipeGesture -> {
                 val t4_triggered = System.currentTimeMillis()
-                Log.i(PERF_TAG, "[PERF] 4. Accessibility Gesture Triggered: $t4_triggered ms | Gesture: ${command.label}")
+                Log.i(PERF_TAG, "[PERF] 4. Accessibility Swipe Gesture Triggered: $t4_triggered ms | Gesture: ${command.label}")
 
-                val success = AccessibilityCommandManager.performGestureNavigation(command.type)
+                val success = AccessibilityCommandManager.performSwipeGesture(command.type)
                 val t5_completed = System.currentTimeMillis()
                 val totalLatency = t5_completed - t1_recognitionComplete
 

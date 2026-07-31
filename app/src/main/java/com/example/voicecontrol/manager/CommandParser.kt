@@ -4,11 +4,11 @@ import android.accessibilityservice.AccessibilityService
 import java.util.Locale
 
 /**
- * Enum defining supported gesture navigation types.
+ * Enum defining supported gesture navigation directions.
  */
 enum class GestureType {
-    SCROLL_DOWN,
-    SCROLL_UP,
+    SWIPE_UP,
+    SWIPE_DOWN,
     SWIPE_LEFT,
     SWIPE_RIGHT
 }
@@ -31,11 +31,11 @@ sealed interface VoiceCommand {
     data class GlobalAction(val actionId: Int, val actionName: String) : VoiceCommand
 
     /**
-     * Intent to execute gesture navigation (Scroll Down, Scroll Up, Swipe Left, Swipe Right).
+     * Intent to execute gesture navigation (Swipe Up, Swipe Down, Swipe Left, Swipe Right).
      * @param type GestureType enum indicating gesture direction.
      * @param label Human-readable description.
      */
-    data class GestureNav(val type: GestureType, val label: String) : VoiceCommand
+    data class SwipeGesture(val type: GestureType, val label: String) : VoiceCommand
 
     /**
      * Unrecognized or unhandled voice command.
@@ -62,19 +62,19 @@ object CommandParser {
 
         val lowerText = trimmedText.lowercase(Locale.getDefault())
 
-        // 1. Check for Gesture Navigation voice commands (Scroll & Swipe)
+        // 1. Check for Gesture Navigation voice commands (Swipe Up, Swipe Down, Swipe Left, Swipe Right)
         when (lowerText) {
-            "scroll down", "down", "scroll page down", "page down" -> {
-                return VoiceCommand.GestureNav(GestureType.SCROLL_DOWN, "Scroll Down")
+            "swipe up", "swipe upward", "upward swipe", "scroll down", "down", "page down" -> {
+                return VoiceCommand.SwipeGesture(GestureType.SWIPE_UP, "Swipe Up")
             }
-            "scroll up", "up", "scroll page up", "page up" -> {
-                return VoiceCommand.GestureNav(GestureType.SCROLL_UP, "Scroll Up")
+            "swipe down", "swipe downward", "downward swipe", "scroll up", "up", "page up" -> {
+                return VoiceCommand.SwipeGesture(GestureType.SWIPE_DOWN, "Swipe Down")
             }
-            "swipe left", "swipe leftward", "next tab", "slide left", "swipe next" -> {
-                return VoiceCommand.GestureNav(GestureType.SWIPE_LEFT, "Swipe Left")
+            "swipe left", "swipe leftward", "leftward swipe", "next tab", "slide left" -> {
+                return VoiceCommand.SwipeGesture(GestureType.SWIPE_LEFT, "Swipe Left")
             }
-            "swipe right", "swipe rightward", "previous tab", "slide right", "swipe back" -> {
-                return VoiceCommand.GestureNav(GestureType.SWIPE_RIGHT, "Swipe Right")
+            "swipe right", "swipe rightward", "rightward swipe", "previous tab", "slide right" -> {
+                return VoiceCommand.SwipeGesture(GestureType.SWIPE_RIGHT, "Swipe Right")
             }
         }
 

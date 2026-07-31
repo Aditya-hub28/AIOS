@@ -57,16 +57,16 @@ object AccessibilityCommandManager {
     }
 
     /**
-     * Executes gesture navigation (Scroll Down, Scroll Up, Swipe Left, Swipe Right).
+     * Executes iPhone-style gesture navigation (Swipe Up, Swipe Down, Swipe Left, Swipe Right).
      */
-    fun performGestureNavigation(type: GestureType): Boolean {
+    fun performSwipeGesture(gestureType: GestureType): Boolean {
         val service = serviceInstance
         if (service != null) {
-            val result = service.performGestureNavigation(type)
-            Log.i(TAG, "Executed performGestureNavigation($type): $result")
+            val result = service.performSwipeGesture(gestureType)
+            Log.i(TAG, "Executed performSwipeGesture($gestureType): $result")
             return result
         } else {
-            Log.w(TAG, "Unable to perform gesture $type: VoiceAccessibilityService is not connected.")
+            Log.w(TAG, "Unable to perform gesture $gestureType: VoiceAccessibilityService is not connected.")
             return false
         }
     }
