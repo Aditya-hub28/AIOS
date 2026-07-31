@@ -348,6 +348,9 @@ class VoiceAccessibilityService : AccessibilityService() {
             when (event.eventType) {
                 AccessibilityEvent.TYPE_VIEW_CLICKED,
                 AccessibilityEvent.TYPE_VIEW_FOCUSED,
+                AccessibilityEvent.TYPE_VIEW_SCROLLED,
+                AccessibilityEvent.TYPE_TOUCH_INTERACTION_START,
+                AccessibilityEvent.TYPE_TOUCH_INTERACTION_END,
                 AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED -> {
                     com.example.voicecontrol.util.ScreenTouchTracker.onScreenTouch()
                 }

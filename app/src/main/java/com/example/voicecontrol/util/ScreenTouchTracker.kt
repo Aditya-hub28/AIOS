@@ -10,7 +10,7 @@ import android.util.Log
 object ScreenTouchTracker {
 
     private const val TAG = "ScreenTouchTracker"
-    private const val TOUCH_SUPPRESSION_WINDOW_MS = 250L
+    private const val TOUCH_SUPPRESSION_WINDOW_MS = 400L
 
     @Volatile
     var lastScreenTouchTimestamp: Long = 0L
