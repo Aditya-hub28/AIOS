@@ -181,7 +181,7 @@ class BackTapDetector(
                 if (currentGyroMag > MAX_GYRO_ROTATION_THRESHOLD) return
 
                 // Rule B: Vehicle Vibration Suppressor (rejects continuous road noise spikes)
-                if (jerk > IMPULSE_JERK_THRESHOLD * 0.7f) {
+                if (jerk > MAX_TAP_IMPULSE * 0.7f) {
                     recentSpikeTimestamps.removeAll { now - it > 400L }
                     recentSpikeTimestamps.add(now)
                     if (recentSpikeTimestamps.size > MAX_VIBRATION_SPIKES_IN_WINDOW) {
