@@ -5,11 +5,16 @@ import android.graphics.RectF
 import android.util.Log
 
 /**
- * Singleton managing active screen bounds, 3x3 region subdivision, and progressive zoom depth.
+ * Singleton managing active screen bounds, 6x6 (36 cells) region subdivision, and recursive zoom depth.
  */
 object GridStateManager {
 
     private const val TAG = "GridStateManager"
+
+    const val GRID_ROWS = 6
+    const val GRID_COLS = 6
+    const val TOTAL_CELLS = 36
+    const val MAX_ZOOM_DEPTH = 2
 
     var isGridActive: Boolean = false
         private set
@@ -29,7 +34,7 @@ object GridStateManager {
         currentBounds = RectF(initialScreenBounds)
         zoomDepth = 0
         isGridActive = true
-        Log.i(TAG, "Grid initialized: ${screenWidth.toInt()}x${screenHeight.toInt()}")
+        Log.i(TAG, "6x6 Grid initialized: ${screenWidth.toInt()}x${screenHeight.toInt()}")
     }
 
     /**
@@ -53,15 +58,15 @@ object GridStateManager {
     }
 
     /**
-     * Calculates the bounding RectF for cell number 1..9 inside current bounds.
+     * Calculates the bounding RectF for cell number 1..36 inside current bounds.
      */
     fun getCellBounds(cellNumber: Int): RectF {
-        val number = cellNumber.coerceIn(1, 9)
-        val row = (number - 1) / 3
-        val col = (number - 1) % 3
+        val number = cellNumber.coerceIn(1, TOTAL_CELLS)
+        val row = (number - 1) / GRID_ROWS
+        val col = (number - 1) % GRID_COLS
 
-        val cellWidth = currentBounds.width() / 3f
-        val cellHeight = currentBounds.height() / 3f
+        val cellWidth = currentBounds.width() / GRID_COLS.toFloat()
+        val cellHeight = currentBounds.height() / GRID_ROWS.toFloat()
 
         val left = currentBounds.left + (col * cellWidth)
         val top = currentBounds.top + (row * cellHeight)
@@ -72,7 +77,7 @@ object GridStateManager {
     }
 
     /**
-     * Zooms grid into selected sub-cell region (1..9).
+     * Zooms grid into selected sub-cell region (1..36).
      */
     fun zoomIntoCell(cellNumber: Int): RectF {
         val selectedBounds = getCellBounds(cellNumber)

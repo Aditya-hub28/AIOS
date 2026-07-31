@@ -80,7 +80,7 @@ class VoiceAccessibilityService : AccessibilityService() {
     fun tapNumber(number: Int): Boolean {
         return try {
             // Check if Grid Overlay is active first
-            if (GridOverlayManager.isGridVisible() && number in 1..9) {
+            if (GridOverlayManager.isGridVisible() && number in 1..com.example.voicecontrol.grid.GridStateManager.TOTAL_CELLS) {
                 return selectGridCell(number)
             }
 

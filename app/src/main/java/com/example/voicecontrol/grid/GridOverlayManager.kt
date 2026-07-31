@@ -1,6 +1,7 @@
 package com.example.voicecontrol.grid
 
 import android.accessibilityservice.AccessibilityService
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -13,9 +14,11 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.FastOutSlowInInterpolator
+import kotlin.math.min
 
 /**
- * Manager handling rendering and updates of full-screen 3x3 Grid Overlay via WindowManager.
+ * Manager handling rendering and animated updates of full-screen 6x6 (36 cells) Grid Overlay via WindowManager.
  */
 object GridOverlayManager {
 
@@ -25,67 +28,118 @@ object GridOverlayManager {
     private var gridCanvasView: GridCanvasView? = null
 
     /**
-     * Custom Canvas View rendering 3x3 grid lines and cell numbers (1..9).
+     * Custom Canvas View rendering iPhone Voice Control style 6x6 grid lines, animated transitions, and numbers (1..36).
      */
     private class GridCanvasView(context: Context) : View(context) {
 
-        private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#6200EE") // Material 3 Primary Accent
+        private val animatedBounds = RectF()
+        private var boundsAnimator: ValueAnimator? = null
+
+        private val gridLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#806200EE") // Primary Accent semi-transparent line
             style = Paint.Style.STROKE
-            strokeWidth = 4f
+            strokeWidth = 3f
         }
 
         private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#BB86FC")
+            color = Color.parseColor("#D0BB86FC") // Bright accent border
             style = Paint.Style.STROKE
-            strokeWidth = 6f
+            strokeWidth = 5f
         }
 
-        private val circleBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#DD000000") // Semi-transparent dark background
+        private val badgeBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#D9000000") // Semi-transparent dark pill background
             style = Paint.Style.FILL
+        }
+
+        private val badgeBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#40FFFFFF") // Subtle badge outline
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
         }
 
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 36f
+            textSize = 24f
             textAlign = Paint.Align.CENTER
             isFakeBoldText = true
+        }
+
+        fun updateBoundsAnimated(targetBounds: RectF, animate: Boolean = true) {
+            if (animatedBounds.isEmpty || !animate) {
+                animatedBounds.set(targetBounds)
+                invalidate()
+                return
+            }
+
+            boundsAnimator?.cancel()
+
+            val startLeft = animatedBounds.left
+            val startTop = animatedBounds.top
+            val startRight = animatedBounds.right
+            val startBottom = animatedBounds.bottom
+
+            boundsAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 250L
+                interpolator = FastOutSlowInInterpolator()
+                addUpdateListener { animator ->
+                    val fraction = animator.animatedValue as Float
+                    animatedBounds.left = startLeft + (targetBounds.left - startLeft) * fraction
+                    animatedBounds.top = startTop + (targetBounds.top - startTop) * fraction
+                    animatedBounds.right = startRight + (targetBounds.right - startRight) * fraction
+                    animatedBounds.bottom = startBottom + (targetBounds.bottom - startBottom) * fraction
+                    invalidate()
+                }
+                start()
+            }
         }
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             if (!GridStateManager.isGridActive) return
 
-            val bounds = GridStateManager.currentBounds
-            val cellW = bounds.width() / 3f
-            val cellH = bounds.height() / 3f
+            val bounds = animatedBounds
+            if (bounds.width() <= 0 || bounds.height() <= 0) return
+
+            val cols = GridStateManager.GRID_COLS
+            val rows = GridStateManager.GRID_ROWS
+            val cellW = bounds.width() / cols.toFloat()
+            val cellH = bounds.height() / rows.toFloat()
 
             // 1. Draw outer boundary box around active region
             canvas.drawRect(bounds, borderPaint)
 
-            // 2. Draw vertical grid lines
-            canvas.drawLine(bounds.left + cellW, bounds.top, bounds.left + cellW, bounds.bottom, linePaint)
-            canvas.drawLine(bounds.left + (cellW * 2), bounds.top, bounds.left + (cellW * 2), bounds.bottom, linePaint)
+            // 2. Draw 5 vertical grid lines
+            for (col in 1 until cols) {
+                val x = bounds.left + (col * cellW)
+                canvas.drawLine(x, bounds.top, x, bounds.bottom, gridLinePaint)
+            }
 
-            // 3. Draw horizontal grid lines
-            canvas.drawLine(bounds.left, bounds.top + cellH, bounds.right, bounds.top + cellH, linePaint)
-            canvas.drawLine(bounds.left, bounds.top + (cellH * 2), bounds.right, bounds.top + (cellH * 2), linePaint)
+            // 3. Draw 5 horizontal grid lines
+            for (row in 1 until rows) {
+                val y = bounds.top + (row * cellH)
+                canvas.drawLine(bounds.left, y, bounds.right, y, gridLinePaint)
+            }
 
-            // 4. Draw number badges (1..9) at center of each 3x3 cell
-            val circleRadius = 26f
+            // 4. Draw 36 cell number badges (1..36) at center of each cell
+            val minDim = min(cellW, cellH)
+            val badgeRadius = (minDim * 0.28f).coerceIn(12f, 24f)
+            val fontSize = (badgeRadius * 1.1f).coerceIn(12f, 22f)
+            textPaint.textSize = fontSize
+
+            val textOffset = (textPaint.descent() + textPaint.ascent()) / 2f
             var number = 1
 
-            for (row in 0..2) {
-                for (col in 0..2) {
+            for (row in 0 until rows) {
+                for (col in 0 until cols) {
                     val centerX = bounds.left + (col * cellW) + (cellW / 2f)
                     val centerY = bounds.top + (row * cellH) + (cellH / 2f)
 
-                    // Draw dark background circle for high visibility
-                    canvas.drawCircle(centerX, centerY, circleRadius, circleBgPaint)
+                    // Draw pill background circle
+                    canvas.drawCircle(centerX, centerY, badgeRadius, badgeBgPaint)
+                    canvas.drawCircle(centerX, centerY, badgeRadius, badgeBorderPaint)
 
-                    // Draw text number centered
-                    val textOffset = (textPaint.descent() + textPaint.ascent()) / 2f
+                    // Draw text number (1..36)
                     canvas.drawText(number.toString(), centerX, centerY - textOffset, textPaint)
 
                     number++
@@ -95,7 +149,7 @@ object GridOverlayManager {
     }
 
     /**
-     * Displays the grid overlay window.
+     * Displays the 6x6 grid overlay window.
      */
     fun showGrid(service: AccessibilityService) {
         try {
@@ -135,17 +189,18 @@ object GridOverlayManager {
 
             wm.addView(view, params)
             gridCanvasView = view
-            Log.i(TAG, "Grid overlay window successfully added.")
+            view.updateBoundsAnimated(GridStateManager.currentBounds, animate = false)
+            Log.i(TAG, "6x6 Grid overlay window successfully added.")
         } catch (e: Exception) {
-            Log.e(TAG, "Error displaying grid overlay", e)
+            Log.e(TAG, "Error displaying 6x6 grid overlay", e)
         }
     }
 
     /**
-     * Invalidates and redraws the grid canvas view after zooming or resetting.
+     * Updates and animates grid bounds after zooming or resetting.
      */
-    fun updateGrid() {
-        gridCanvasView?.invalidate()
+    fun updateGrid(animate: Boolean = true) {
+        gridCanvasView?.updateBoundsAnimated(GridStateManager.currentBounds, animate = animate)
     }
 
     /**

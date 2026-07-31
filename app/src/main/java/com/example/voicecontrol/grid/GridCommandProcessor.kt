@@ -6,14 +6,14 @@ import android.graphics.Path
 import android.util.Log
 
 /**
- * Controller processing grid overlay commands (Show Grid, Hide Grid, Reset Grid, Click Here, Tap Cell).
+ * Controller processing 6x6 grid overlay commands (Show Grid, Hide Grid, Reset Grid, Click Here, Tap Cell 1..36).
  */
 object GridCommandProcessor {
 
     private const val TAG = "GridCommandProcessor"
 
     /**
-     * Shows initial full-screen 3x3 grid overlay.
+     * Shows initial full-screen 6x6 grid overlay.
      */
     fun showGrid(service: AccessibilityService): Boolean {
         GridOverlayManager.showGrid(service)
@@ -34,21 +34,21 @@ object GridCommandProcessor {
     fun resetGrid(): Boolean {
         if (!GridOverlayManager.isGridVisible()) return false
         GridStateManager.resetGrid()
-        GridOverlayManager.updateGrid()
-        Log.i(TAG, "Reset grid to initial screen layout.")
+        GridOverlayManager.updateGrid(animate = true)
+        Log.i(TAG, "Reset grid to initial full screen layout.")
         return true
     }
 
     /**
-     * Zooms into selected 3x3 cell (1..9), or clicks if max zoom depth reached.
+     * Zooms into selected 6x6 cell (1..36) or clicks center if max zoom depth reached.
      */
     fun selectCell(service: AccessibilityService, cellNumber: Int): Boolean {
         if (!GridOverlayManager.isGridVisible()) {
             showGrid(service)
         }
 
-        if (GridStateManager.zoomDepth >= 2) {
-            // High zoom depth reached -> Auto-click center of cell and close grid
+        if (GridStateManager.zoomDepth >= GridStateManager.MAX_ZOOM_DEPTH) {
+            // Max zoom depth reached -> Perform gesture click at center of selected cell & close grid
             val cellBounds = GridStateManager.getCellBounds(cellNumber)
             val tapX = cellBounds.centerX()
             val tapY = cellBounds.centerY()
@@ -58,9 +58,9 @@ object GridCommandProcessor {
             hideGrid()
             return success
         } else {
-            // Zoom into selected cell region
+            // Recursively zoom into selected cell region
             GridStateManager.zoomIntoCell(cellNumber)
-            GridOverlayManager.updateGrid()
+            GridOverlayManager.updateGrid(animate = true)
             Log.i(TAG, "Selected cell #$cellNumber -> Zoom depth ${GridStateManager.zoomDepth}")
             return true
         }
