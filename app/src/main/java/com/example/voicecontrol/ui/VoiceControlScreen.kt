@@ -172,6 +172,12 @@ fun VoiceControlScreen(
     }
 
     var showDebugDashboard by remember { mutableStateOf(false) }
+    var showTapTapScreen by remember { mutableStateOf(false) }
+
+    if (showTapTapScreen) {
+        com.example.voicecontrol.ui.taptap.TapTapScreen(onBackClick = { showTapTapScreen = false })
+        return
+    }
 
     if (showDebugDashboard) {
         BackTapDebugScreen(onClose = { showDebugDashboard = false })
@@ -189,6 +195,13 @@ fun VoiceControlScreen(
                     )
                 },
                 actions = {
+                    IconButton(onClick = { showTapTapScreen = true }) {
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.TouchApp,
+                            contentDescription = "TapTap Gestures & Settings",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     IconButton(onClick = { showDebugDashboard = true }) {
                         Icon(
                             imageVector = androidx.compose.material.icons.Icons.Default.BugReport,
