@@ -42,6 +42,7 @@ class CameraGate : TapTapGate {
 }
 
 class TelephonyGate : TapTapGate {
+    @Suppress("DEPRECATION")
     override fun isBlocked(context: Context): Boolean {
         val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager ?: return false
         return tm.callState != TelephonyManager.CALL_STATE_IDLE
