@@ -22,19 +22,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.PhonelinkRing
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PhoneInTalk
-import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Smartphone
-import androidx.compose.material.icons.filled.TouchApp
-import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -89,7 +82,7 @@ fun TapTapScreen(
 
     val actionOptions = listOf(
         ActionOption(TapTapSettings.ACTION_TOGGLE_VOICE_CONTROL, "Toggle Voice Control", "Turns Voice Assistant ON/OFF", Icons.Default.Mic),
-        ActionOption(TapTapSettings.ACTION_FLASHLIGHT, "Toggle Flashlight", "Turns Camera Torch ON/OFF", Icons.Default.FlashOn),
+        ActionOption(TapTapSettings.ACTION_FLASHLIGHT, "Toggle Flashlight", "Turns Camera Torch ON/OFF", Icons.Default.Build),
         ActionOption(TapTapSettings.ACTION_SCREENSHOT, "Take Screenshot", "Captures system screenshot", Icons.Default.Smartphone),
         ActionOption(TapTapSettings.ACTION_QUICK_SETTINGS, "Open Quick Settings", "Expands notification shade", Icons.Default.Settings),
         ActionOption(TapTapSettings.ACTION_MEDIA_PLAY_PAUSE, "Media Play/Pause", "Controls music/video playback", Icons.Default.PlayArrow),
@@ -158,7 +151,7 @@ fun TapTapScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.TouchApp,
+                                imageVector = Icons.Default.Build,
                                 contentDescription = null,
                                 tint = Color.White
                             )
@@ -208,7 +201,7 @@ fun TapTapScreen(
                     ActionSelectorCard(
                         title = "Double Tap Action",
                         subtitle = "Triggered when back is tapped 2 times",
-                        icon = Icons.Default.TouchApp,
+                        icon = Icons.Default.Smartphone,
                         selectedActionId = doubleTapAction,
                         options = actionOptions,
                         onActionSelected = { id ->
@@ -220,7 +213,7 @@ fun TapTapScreen(
                     ActionSelectorCard(
                         title = "Triple Tap Action",
                         subtitle = "Triggered when back is tapped 3 times",
-                        icon = Icons.Default.PhonelinkRing,
+                        icon = Icons.Default.Build,
                         selectedActionId = tripleTapAction,
                         options = actionOptions,
                         onActionSelected = { id ->
@@ -248,7 +241,7 @@ fun TapTapScreen(
                             GateToggleRow(
                                 title = "Screen Off Gate",
                                 subtitle = "Block gesture detection when screen is turned off",
-                                icon = Icons.Default.ScreenLockPortrait,
+                                icon = Icons.Default.Lock,
                                 checked = isScreenOffGate,
                                 onCheckedChange = { checked ->
                                     isScreenOffGate = checked
@@ -259,7 +252,7 @@ fun TapTapScreen(
                             GateToggleRow(
                                 title = "Camera Active Gate",
                                 subtitle = "Block gesture detection when camera app is open",
-                                icon = Icons.Default.CameraAlt,
+                                icon = Icons.Default.Build,
                                 checked = isCameraGate,
                                 onCheckedChange = { checked ->
                                     isCameraGate = checked
@@ -270,7 +263,7 @@ fun TapTapScreen(
                             GateToggleRow(
                                 title = "Phone Call Gate",
                                 subtitle = "Block gesture detection during active calls",
-                                icon = Icons.Default.PhoneInTalk,
+                                icon = Icons.Default.Mic,
                                 checked = isCallGate,
                                 onCheckedChange = { checked ->
                                     isCallGate = checked
@@ -303,7 +296,7 @@ fun TapTapScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Default.Vibration,
+                                    imageVector = Icons.Default.Build,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary
                                 )

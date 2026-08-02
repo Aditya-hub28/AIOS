@@ -197,7 +197,7 @@ fun VoiceControlScreen(
                 actions = {
                     IconButton(onClick = { showTapTapScreen = true }) {
                         Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Default.TouchApp,
+                            imageVector = androidx.compose.material.icons.Icons.Default.Settings,
                             contentDescription = "TapTap Gestures & Settings",
                             tint = MaterialTheme.colorScheme.primary
                         )
