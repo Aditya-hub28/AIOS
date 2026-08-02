@@ -196,6 +196,19 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
         autoRestartJob?.cancel()
         if (!_isVoiceControlActive.value) return
 
+        val hasPermission = ContextCompat.checkSelfPermission(
+            getApplication(),
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasPermission) {
+            _uiState.value = VoiceUiState.Error(
+                message = "Microphone permission is required to use Voice Control.",
+                isPermissionError = true
+            )
+            return
+        }
+
         if (!speechManager.isAvailable()) {
             _uiState.value = VoiceUiState.Error(
                 message = "Speech recognition service is not available on this device."
@@ -258,11 +271,16 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
                     Manifest.permission.RECORD_AUDIO
                 ) == PackageManager.PERMISSION_GRANTED
 
-                Log.w("VoiceViewModel", "SpeechRecognizer transient error: $errorMessage")
                 if (!hasPermission) {
-                    _uiState.value = VoiceUiState.Error(message = errorMessage, isPermissionError = true)
+                    _uiState.value = VoiceUiState.Error(
+                        message = "Microphone permission is required to use Voice Control.",
+                        isPermissionError = true
+                    )
+                    return
                 }
-                scheduleContinuousAutoRestart(immediate = false)
+
+                Log.w("VoiceViewModel", "SpeechRecognizer transient error: $errorMessage")
+                scheduleContinuousAutoRestart(immediate = false, delayMs = 800L)
             }
         })
     }
@@ -270,12 +288,12 @@ class VoiceViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Schedules automatic restart of speech recognition for continuous listening.
      */
-    private fun scheduleContinuousAutoRestart(immediate: Boolean = false) {
+    private fun scheduleContinuousAutoRestart(immediate: Boolean = false, delayMs: Long = 300L) {
         if (!_isVoiceControlActive.value) return
         autoRestartJob?.cancel()
         autoRestartJob = viewModelScope.launch {
             if (!immediate) {
-                delay(300L)
+                delay(delayMs)
             }
             if (_isVoiceControlActive.value) {
                 startListening()
