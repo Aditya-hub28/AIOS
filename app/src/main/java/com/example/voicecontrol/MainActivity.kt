@@ -25,6 +25,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         com.example.voicecontrol.manager.VoiceControlManager.startBackTapDetection(applicationContext)
+        com.example.voicecontrol.taptap.TapTapEngine.init(applicationContext)
         setContent {
             VoiceControlTheme {
                 VoiceControlScreen(viewModel = viewModel)

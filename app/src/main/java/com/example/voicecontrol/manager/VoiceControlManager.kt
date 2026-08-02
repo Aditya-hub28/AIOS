@@ -30,6 +30,7 @@ object VoiceControlManager {
      * Initializes BackTapDetector and starts monitoring triple back-tap gestures.
      */
     fun init(context: Context) {
+        com.example.voicecontrol.taptap.TapTapEngine.init(context)
         if (backTapDetector == null) {
             val detector = BackTapDetector(
                 context = context.applicationContext,

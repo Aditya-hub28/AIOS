@@ -26,17 +26,41 @@ class VoiceAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "VoiceAccessibility"
+        var instance: VoiceAccessibilityService? = null
+            private set
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         try {
+            instance = this
             Log.i(TAG, "VoiceAccessibilityService connected to System Accessibility Framework.")
             AccessibilityCommandManager.registerService(this)
             com.example.voicecontrol.manager.VoiceControlManager.init(this)
         } catch (e: Exception) {
             Log.e(TAG, "Error during onServiceConnected", e)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (instance == this) instance = null
+    }
+
+    fun takeScreenshotAction(): Boolean {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
+        } else false
+    }
+
+    fun openQuickSettings(): Boolean {
+        return performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
+    }
+
+    fun performGlobalLockScreen(): Boolean {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+        } else false
     }
 
     // --- GRID OVERLAY SYSTEM METHODS ---
