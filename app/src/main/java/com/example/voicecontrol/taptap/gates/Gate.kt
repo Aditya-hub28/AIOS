@@ -15,8 +15,12 @@ interface TapTapGate {
 
 class ScreenStateGate : TapTapGate {
     override fun isBlocked(context: Context): Boolean {
-        val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
-        return !pm.isInteractive
+        return try {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
+            !pm.isInteractive
+        } catch (e: Exception) {
+            false
+        }
     }
 }
 
@@ -24,16 +28,20 @@ class CameraGate : TapTapGate {
     private var isCameraActive = false
 
     fun init(context: Context) {
-        val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager
-        cameraManager?.registerAvailabilityCallback(object : CameraManager.AvailabilityCallback() {
-            override fun onCameraUnavailable(cameraId: String) {
-                isCameraActive = true
-            }
+        try {
+            val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager
+            cameraManager?.registerAvailabilityCallback(object : CameraManager.AvailabilityCallback() {
+                override fun onCameraUnavailable(cameraId: String) {
+                    isCameraActive = true
+                }
 
-            override fun onCameraAvailable(cameraId: String) {
-                isCameraActive = false
-            }
-        }, null)
+                override fun onCameraAvailable(cameraId: String) {
+                    isCameraActive = false
+                }
+            }, null)
+        } catch (e: Exception) {
+            isCameraActive = false
+        }
     }
 
     override fun isBlocked(context: Context): Boolean {
@@ -44,7 +52,13 @@ class CameraGate : TapTapGate {
 class TelephonyGate : TapTapGate {
     @Suppress("DEPRECATION")
     override fun isBlocked(context: Context): Boolean {
-        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager ?: return false
-        return tm.callState != TelephonyManager.CALL_STATE_IDLE
+        return try {
+            val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager ?: return false
+            tm.callState != TelephonyManager.CALL_STATE_IDLE
+        } catch (e: SecurityException) {
+            false
+        } catch (e: Exception) {
+            false
+        }
     }
 }

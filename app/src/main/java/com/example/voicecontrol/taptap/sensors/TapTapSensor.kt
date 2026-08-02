@@ -89,7 +89,9 @@ class TapTapSensor(
 
         // Check Gates
         for (gate in gates) {
-            if (gate.isBlocked(context)) return
+            try {
+                if (gate.isBlocked(context)) return
+            } catch (_: Exception) {}
         }
 
         val now = SystemClock.elapsedRealtime()
