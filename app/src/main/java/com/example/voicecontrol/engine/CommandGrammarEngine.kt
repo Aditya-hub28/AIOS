@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ResolveInfo
 import android.util.Log
+import com.example.voicecontrol.manager.CommandParser
 import com.example.voicecontrol.manager.GestureType
 import com.example.voicecontrol.manager.SpeechRecognitionListener
 import com.example.voicecontrol.manager.SpeechRecognizerManager
