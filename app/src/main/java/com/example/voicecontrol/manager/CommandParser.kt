@@ -79,9 +79,59 @@ sealed interface VoiceCommand {
      */
     object ClickHere : VoiceCommand
 
-        // 1. Check for Dynamic Grid Overlay commands
+    /**
+     * Unrecognized or unhandled voice command.
+     * @param rawText Full original spoken text.
+     */
+    data class Unknown(val rawText: String) : VoiceCommand
+}
 
-        // 2. Check for Dynamic Grid Overlay commands
+/**
+ * CommandParser parses recognized text into structured VoiceCommand instances.
+ * Supports dynamic grid overlay sizing ("show grid with 7 rows", "show grid with 9 columns").
+ */
+object CommandParser {
+
+    private val OPEN_PREFIXES = listOf("open", "launch", "start", "run", "go to")
+    private val TAP_PREFIXES = listOf("tap", "tab", "top", "tub", "tip", "app", "cap", "tape", "click", "press", "select", "touch")
+
+    private val SPOKEN_NUMBER_MAP = mapOf(
+        "zero" to 0, "0" to 0,
+        "one" to 1, "wun" to 1, "wan" to 1, "1" to 1,
+        "two" to 2, "to" to 2, "too" to 2, "tu" to 2, "2" to 2,
+        "three" to 3, "tree" to 3, "free" to 3, "tri" to 3, "3" to 3,
+        "four" to 4, "for" to 4, "fore" to 4, "far" to 4, "4" to 4,
+        "five" to 5, "faiv" to 5, "fiv" to 5, "5" to 5,
+        "six" to 6, "siks" to 6, "sik" to 6, "6" to 6,
+        "seven" to 7, "sevan" to 7, "sevin" to 7, "saven" to 7, "7" to 7,
+        "eight" to 8, "ate" to 8, "ait" to 8, "eyt" to 8, "8" to 8,
+        "nine" to 9, "nain" to 9, "nien" to 9, "nin" to 9, "9" to 9,
+        "ten" to 10, "tin" to 10, "tan" to 10, "10" to 10,
+        "eleven" to 11, "aleven" to 11, "11" to 11,
+        "twelve" to 12, "twelv" to 12, "12" to 12,
+        "thirteen" to 13, "fourteen" to 14, "fifteen" to 15,
+        "sixteen" to 16, "seventeen" to 17, "eighteen" to 18,
+        "nineteen" to 19, "twenty" to 20,
+        "first" to 1, "second" to 2, "third" to 3, "fourth" to 4, "fifth" to 5
+    )
+
+    private val TENS_MAP = mapOf(
+        "twenty" to 20, "thirty" to 30, "forty" to 40, "fourty" to 40,
+        "fifty" to 50, "sixty" to 60, "seventy" to 70, "eighty" to 80, "ninety" to 90
+    )
+
+    /**
+     * Parses a raw spoken text string and extracts the intent.
+     */
+    fun parse(rawText: String): VoiceCommand {
+        val trimmedText = rawText.trim()
+        if (trimmedText.isBlank()) {
+            return VoiceCommand.Unknown(rawText)
+        }
+
+        val lowerText = trimmedText.lowercase(Locale.getDefault())
+
+        // 1. Check for Dynamic Grid Overlay commands
         val gridCmd = parseDynamicGridCommand(lowerText)
         if (gridCmd != null) {
             return gridCmd
