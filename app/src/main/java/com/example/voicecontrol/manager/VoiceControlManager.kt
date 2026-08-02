@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
-import com.example.voicecontrol.sensor.BackTapDetector
 import com.example.voicecontrol.service.VoiceControlService
 import com.example.voicecontrol.util.VibrationUtils
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,8 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Singleton controller managing Voice Control state, background Triple Back Tap detection,
- * service lifecycle, vibration haptics, and Toast user feedback.
+ * Singleton controller managing Voice Control state, service lifecycle, vibration haptics, and Toast user feedback.
  */
 object VoiceControlManager {
 
@@ -23,40 +21,14 @@ object VoiceControlManager {
     private val _isVoiceControlActive = MutableStateFlow(false)
     val isVoiceControlActive: StateFlow<Boolean> = _isVoiceControlActive.asStateFlow()
 
-    private var backTapDetector: BackTapDetector? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /**
-     * Initializes BackTapDetector and starts monitoring triple back-tap gestures.
+     * Initializes TapTapEngine and voice control system.
      */
     fun init(context: Context) {
         com.example.voicecontrol.taptap.TapTapEngine.init(context)
-        if (backTapDetector == null) {
-            val detector = BackTapDetector(
-                context = context.applicationContext,
-                onTripleTap = {
-                    toggleVoiceControl(context.applicationContext)
-                }
-            )
-            backTapDetector = detector
-            detector.startListening()
-            Log.i(TAG, "VoiceControlManager initialized with Triple Back-Tap Detection.")
-        }
-    }
-
-    /**
-     * Starts listening for triple back taps.
-     */
-    fun startBackTapDetection(context: Context) {
-        init(context)
-        backTapDetector?.startListening()
-    }
-
-    /**
-     * Stops listening for triple back taps.
-     */
-    fun stopBackTapDetection() {
-        backTapDetector?.stopListening()
+        Log.i(TAG, "VoiceControlManager initialized.")
     }
 
     /**
@@ -75,12 +47,12 @@ object VoiceControlManager {
                 // Start Voice Control
                 VoiceControlService.start(context)
                 Toast.makeText(context, "Voice Control Activated", Toast.LENGTH_SHORT).show()
-                Log.i(TAG, "Triple Back Tap -> Voice Control ACTIVATED")
+                Log.i(TAG, "Voice Control ACTIVATED")
             } else {
                 // Stop Voice Control
                 VoiceControlService.stop(context)
                 Toast.makeText(context, "Voice Control Deactivated", Toast.LENGTH_SHORT).show()
-                Log.i(TAG, "Triple Back Tap -> Voice Control DEACTIVATED")
+                Log.i(TAG, "Voice Control DEACTIVATED")
             }
         }
     }
